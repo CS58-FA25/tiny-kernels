@@ -1,7 +1,11 @@
 #include <ylib.h>
 #include <yalnix.h>
 #include <hardware.h> 
-#include "ykernel.h"   
+#include "ykernel.h"
+
+/* ================ Global Variables ================= */
+#define KERNEL_TRACE_LEVEL   3
+extern int kernel_brk;
 
 /* =============== Configuration Constants ================ */
 
@@ -102,14 +106,13 @@ typedef struct terminal {
 
 void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 {
-    // TracePrintf(KERNEL_TRACE_LEVEL, "Entering KernelStart");
-
+    TracePrintf(KERNEL_TRACE_LEVEL, "Entering KernelStart");
+    kernel_brk = _orig_kernel_brk_page;
+    initializeFreeFrameList(pmem_size);
+    initializeInterruptVectorTable();
+    initializeVM();
     // InitializeKernelDataStructures();
-    // InitializeFreeFrameList(pmem_size);
     // InitializeInterruptVectorTable()
-    // InitializeVM();            // Build Region 0 & 1 page tables
-
-    // EnableVM();                // Turn on virtual memory
 
     // PCB *init_pcb = CreateProcess(INIT_PID);
     // CopyUserContext(uctxt, init_pcb);
