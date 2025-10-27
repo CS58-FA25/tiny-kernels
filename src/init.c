@@ -1,3 +1,36 @@
+#include "traps.h" // TrapHandler, NotImplementedTrapHandler, ClockTrapHandler, ...
+
+#include <hardware.h> // yalnix: hardware.h
+
+// Create trap handlers, set them all to not implemented.
+// Since this is still being developed and all of them might not be implemented,
+// it's easier to "set them as we go"
+static TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
+   // Kernel, Clock, Illegal, Memory (0-3)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+
+   // Math, Tty Rx, Tty Tx, Disk (4-7)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler, 
+
+   // Unused (8-11)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+
+   // EXTRA (12-15)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+};
+
 void initializeVM() {
     // TracePrintf(KERNEL_TRACE_LEVEL, "Building initial page tables")
 
@@ -44,14 +77,13 @@ void initializeFreeFrameList() {
     // free_frame_count = num_frames - KERNEL_RESERVED_FRAMES
 }
 void InitializeInterruptVectorTable() {
-    // interruptVector[TRAP_KERNEL] = &trap_kernel_handler
-    // interruptVector[TRAP_CLOCK] = &trap_clock_handler
-    // interruptVector[TRAP_ILLEGAL] = &trap_illegal_handler
-    // interruptVector[TRAP_MEMORY] = &trap_memory_handler
-    // interruptVector[TRAP_MATH] = &trap_math_handler
-    // interruptVector[TRAP_TTY_RECEIVE] = &trap_tty_receive_handler
-    // interruptVector[TRAP_TTY_TRANSMIT] = &trap_tty_transmit_handler
-    // WriteRegister(REG_VECTOR_BASE, &interruptVector)
+    TRAP_VECTOR[TRAP_KERNEL] = &KernelTrapHandler;
+    TRAP_VECTOR[TRAP_CLOCK] = &ClockTrapHandler;
+    // TODO:
+    // These are currently unimplemented (Checkpoint 2)
+    // Add these in as they are implemented
+    // TRAP_ILLEGAL,TRAP_MEMORY,TRAP_MATH,TRAP_TTY_RECEIVE,TRAP_TTY_TRANSMIT
+    WriteRegister(REG_VECTOR_BASE, &TRAP_VECTOR);
 }
 
 void InitializeTerminals() {
