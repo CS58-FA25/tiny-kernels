@@ -4,10 +4,14 @@
 #include "yalnix.h"
 #include "hardware.h"
 #include "ykernel.h"   /* contains PCB type if you put it there */
+#include "queue.h"
 
 #define MAX_PROCS        64        /* size of proc table/array */
 #define IDLE_PID         0         /* pid reserved for the kernel idle process */
 #define INVALID_PID      (-1)  /* Entries in the processes table that have this value mean that this pid is free to use */
+
+#define USER_MEM_START    VMEM_1_BASE
+#define USER_STACK_BASE   VMEM_1_LIMIT
 
 /* process state */
 typedef enum {
@@ -16,8 +20,11 @@ typedef enum {
     PROC_READY,
     PROC_RUNNING,
     PROC_BLOCKED,  /* waiting for I/O or wait() */
-    PROC_ZOMBIE
+    PROC_ZOMBIE,
+    PROC_ORPHAN,
 } proc_state_t;
+
+typedef struct pcb PCB;
 
 /* Process Control Block */
 typedef struct pcb {
@@ -33,15 +40,14 @@ typedef struct pcb {
 
     /* Full user CPU state snapshot.  The handout requires storing the full
      * UserContext in the PCB (not just a pointer) so it can be restored later. */
-    UserContext uctxt;
+    UserContext user_context;
 
     /* Kernel context & kernel stack - used by KernelContextSwitch routines.
      * The type KernelContext is provided in hardware.h and is opaque. */
-    KernelContext kctx;
+    KernelContext kernel_context;
 
     /* Kernel stack bookkeeping: kernel allocates kernel stack frames in Region 0 */
     void *kstack_base;       /* base virtual address of the kernel stack (Region 0) */
-    unsigned int kstack_npages;
 
     /* User-region memory accounting */
     unsigned int user_heap_start_vaddr; /* page-aligned lowest heap address (inclusive) */
@@ -49,62 +55,31 @@ typedef struct pcb {
     unsigned int user_stack_base_vaddr; /* top of user stack (initial) */
 
     /* Scheduling queue pointers (singly linked for simplicity) */
-    struct pcb *next;
+    PCB *next;
+    PCB *prev;
+    PCB *parent;
+    queue_t *children_processes;
+
 
     /* bookkeeping flags */
     int waiting_for_child_pid;  /* if parent is blocked waiting for child (Wait) */
     int last_run_tick;          /* last tick when this process ran (scheduler info) */
 
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
-} PCB;
+};
 
-/* Global process table and runqueues */
-extern PCB *proc_table;       /* array of MAX_PROCS PCBs allocated at kernel startup */
-extern unsigned int proc_table_len;
-extern int pid_free_head;
 
-extern PCB *current_proc;     /* currently running process (NULL if kernel idle) */
-
-/* Idle PCB convenience */
 extern PCB *idle_proc;
+extern PCB *current_proc;
+extern queue_t *ready_queue;
+extern queue_t *blocked_queue;
+extern queue_t *zombie_queue;
 
-/* Exported globals */
-extern PCB *proc_table;             /* array of MAX_PROCS PCBs */
-extern unsigned int proc_table_len; /* equals MAX_PROCS */
 
-extern PCB *current_proc;           /* currently running process (NULL if kernel idle) */
-extern PCB *idle_proc;
 
-/* Run / other queues */
-typedef struct runqueue {
-    PCB *head;
-    PCB *tail;
-} runqueue_t;
-
-extern runqueue_t ready_queue;     /* processes ready to run */
-extern runqueue_t blocked_queue;   /* generic blocked processes (optional) */
-extern runqueue_t zombie_queue;    /* zombies waiting to be reaped */
-
-/* Initialization */
-void InitializeProcSubsystem(void);
-
-/* PCB alloc/free */
-PCB *AllocPCB(void);
-void FreePCB(PCB *p);
-
-/* Queue ops */
-void Enqueue(runqueue_t *q, PCB *p);
-PCB *Dequeue(runqueue_t *q);
-int RemoveFromQueue(runqueue_t *q, PCB *p); /* returns 0 if removed, -1 if not found */
-
-/* Convenience queue ops */
-void EnqueueReady(PCB *p);
-PCB *DequeueReady(void);
-
-/* Process lifecycle helpers */
-PCB *CreateIdleProcess(void);
-int MakeProcessZombie(PCB *p, int exit_status); /* mark as zombie */
-int ReapZombieByPid(int pid); /* frees resources, returns 0 on success, -1 if none */
-int WaitForChild(PCB *parent, int child_pid); /* parent blocks until child gone or returns -1 */
+PCB *create_PCB(void);
+void InitializeProcQueues(void);
+void delete_pcb(PCB *process);
+void copy_pt(PCB *parent, PCB *child);
 
 #endif /* PROC_H */
