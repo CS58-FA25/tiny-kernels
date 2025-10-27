@@ -15,6 +15,6 @@
  */
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
-   TracePrintf(TRAP_TRACE_LEVEL, "[CLOCK_TRAP] Clock trap triggered\n")
+   TracePrintf(TRAP_TRACE_LEVEL, "[CLOCK_TRAP] Clock trap triggered\n");
 }
 
