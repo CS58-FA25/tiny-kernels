@@ -15,7 +15,6 @@
 /* process state */
 typedef enum {
     PROC_FREE = 0,
-    PROC_IDLE,     /* the kernel's initial idle process */
     PROC_READY,
     PROC_RUNNING,
     PROC_BLOCKED,  /* waiting for I/O or wait() */
@@ -35,8 +34,7 @@ typedef struct pcb {
     /* Region 1 page table: kernel stores a pointer to an in-memory page table.
      * The MMU registers REG_PTBR1/REG_PTLR1 are set to these during context-switch. */
     pte_t *ptbr;             /* virtual address of page table for region 1 */
-    unsigned int ptlr;       /* length (number of entries) */
-
+    unsigned int ptlr;
     /* Full user CPU state snapshot.  The handout requires storing the full
      * UserContext in the PCB (not just a pointer) so it can be restored later. */
     UserContext user_context;
@@ -82,5 +80,8 @@ void InitializeProcQueues(void);
 void delete_pcb(PCB *process);
 void copy_pt(PCB *parent, PCB *child);
 int find_freeppid(void);
+
+PCB *CreateIdlePCB(UserContext *uctxt);
+void DoIdle(void);
 
 #endif /* PROC_H */

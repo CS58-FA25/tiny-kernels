@@ -25,24 +25,29 @@ typedef struct terminal {
 
 void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 {
+    TracePrintf(1, "KernelStart: Entering KernelStart\n");
+    TracePrintf(1, "Physical memory has size %d\n", pmem_size);
+
     kernel_brk_page = _orig_kernel_brk_page;
-    TracePrintf(KERNEL_TRACE_LEVEL, "Entering KernelStart");
-    kernel_brk = _orig_kernel_brk_page;
+
+    TracePrintf(1, "Initializing the free frame array...\n");
     initializeFreeFrameList(pmem_size);
-    initializeInterruptVectorTable();
+
+    TracePrintf(1, "Initializing and enabling virtual memory...\n");
     initializeVM();
-    // InitializeKernelDataStructures();
-    // InitializeInterruptVectorTable()
 
-    // PCB *init_pcb = CreateProcess(INIT_PID);
-    // CopyUserContext(uctxt, init_pcb);
-    // current = init_pcb;
-    // Enqueue(ready_queue, init_pcb);
+    TracePrintf(1, "Initializing the interrupt vector table....\n");
+    initializeInterruptVectorTable();
 
-    // PCB *idle_pcb = CreateIdleProcess();
+    TracePrintf(1, "Initializing the table of free pids to be used by processes....\n");
+    InitializeProcTable();
 
-    // Run Init process
-    // return
+    TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
+    InitializeProcQueues();
+    idle_proc = CreateIdlePCB(uctxt);
+    current_proc = idle_proc;
+    TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
+
 }
 
 

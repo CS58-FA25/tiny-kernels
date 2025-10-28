@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "hardware.h"
 #include "queue.h"
+#include "mem.h"
 
 ready_queue = NULL;
 blocked_queue = NULL;
@@ -39,7 +40,7 @@ PCB *create_PCB() {
     // Zero out the struct to avoid garbage values
     memset(process, 0, sizeof(PCB));
 
-    process->pid = INVALID_PID;       // will be assigned later by process table
+    process->pid = find_freeppid();
     process->ppid = INVALID_PID;      // no parent yet
     process->state = PROC_FREE;
     process->exit_status = 0;
@@ -52,6 +53,8 @@ PCB *create_PCB() {
     }
     memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t));
     process->ptlr = NUM_PAGES_REGION1;
+    WriteRegister(REG_PTBR1, (unsigned int)process->ptbr);
+    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
     
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_heap_end_vaddr = USER_MEM_START; // Reassign after loadProgram is called
@@ -87,7 +90,9 @@ void delete_PCB(PCB *process) {
         TracePrintf(0, "delete_PCB: Process is null.\n");
         Halt();
     }
-
+    if (process->pid != INVALID_PID) {
+        available_pids[process->pid] = 0;
+    }
     if (process->children_processes != NULL) {
         for (PCB *child = process->children_processes->head; child != NULL; child = child->next) {
             child->parent = NULL;
@@ -127,4 +132,43 @@ int find_freeppid(void) {
     }
     TracePrintf(0, "find_freeppid: Couldn't find a free pid for the process");
     return INVALID_PID;
+}
+
+PCB *CreateIdlePCB(UserContext *uctxt) {
+    idle_proc = create_PCB();
+    if (idle_proc == NULL) {
+        TracePrintf(0, "CreateIdlePCB: Failed to create the idle process pcb.\n");
+        Halt();
+    }
+    // Allocating memory for user stack. Initially it's one page and going to be at the top of region 1
+    int ustack_vpn = (VMEM_1_LIMIT - PAGESIZE - VMEM_1_BASE) >> PAGESHIFT;
+    int ustack_pfn = allocFrame(FRAME_USER);
+    MapPage(idle_proc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
+
+    idle_proc->kstack_base = malloc(KERNEL_STACK_SIZE);
+    memcpy(&idle_proc->user_context, uctxt, sizeof(UserContext));
+    (&(idle_proc->user_context))->pc = (void *)DoIdle;
+
+    // Kernel Stack
+    unsigned int kstack_base = VMEM_0_LIMIT - KERNEL_STACK_SIZE;
+    idle_proc->kstack_base = (void *)kstack_base;
+    for (int i = 0; i < KSTACK_PAGES; i++) {
+        int pfn = allocFrame(FRAME_KERNEL);
+        MapPage(pt_region0, KSTACK_START_PAGE + i, pfn, PROT_READ | PROT_WRITE);
+    }
+    idle_proc->user_stack_base_vaddr = VMEM_1_LIMIT - PAGESIZE;
+
+    idle_proc->pid = 0;
+    idle_proc->ppid = INVALID_PID;
+    idle_proc->state = PROC_RUNNING;
+
+    TracePrintf(1, "Created Idle process with %d PID.\n", idle_proc->pid);
+    return idle_proc;
+}
+
+void DoIdle(void) {
+    while (1) {
+        TracePrintf(1, "Running Idle Process...\n");
+        Pause();
+    }
 }

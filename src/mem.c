@@ -129,3 +129,29 @@ int SetKernelBrk(void *addr_ptr)
     kernel_brk_page = (int) target_vpn;
     return 0;
 }
+
+void MapPage(pte_t *ptbr, int vpn, int pfn, int prot) {
+    ptbr[vpn].pfn = pfn;
+    ptbr[vpn].prot = prot;
+    ptbr[vpn].valid = 1;  // <-- This is the missing, essential line
+}
+pte_t *InitializeKernelStack() {
+    pte_t *kernel_stack = (pte_t *)malloc(KSTACK_PAGES * sizeof(pte_t));
+    if (kernel_stack == NULL)
+    {
+        TracePrintf(0, "InitializeKernelStack: Failed to allocate kernel stack\n");
+        Halt();
+    }
+
+    for (int j = 0; j < KSTACK_PAGES; j++)
+    {
+        int vpage = KSTACK_START_PAGE + j;
+        kernel_stack[j].valid = 1;
+        kernel_stack[j].pfn = vpage;
+        kernel_stack[j].prot = PROT_READ | PROT_WRITE;
+
+        AllocateFrame(vpage);
+    }
+
+    return kernel_stack;
+}

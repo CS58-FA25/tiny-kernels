@@ -29,5 +29,7 @@ extern pte_t *pt_region1;
 int allocFrame(frame_usage_t usage);
 void freeFrame(int pfn);
 int SetKernelBrk(void *addr_ptr);
+void MapPage(pte_t *ptbr, int vpn, int pfn, int prot);
+pte_t *InitializeKernelStack();
 
 #endif

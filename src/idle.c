@@ -1,3 +1,6 @@
-int main(int const argc, char* const argv[]) {
-    while (1) Pause();
+void RunIdle(void) {
+    while (1) {
+        TracePrintf(1, "Running Idle Process...\n");
+        Pause();
+    }
 }

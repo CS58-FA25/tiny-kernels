@@ -1,6 +1,6 @@
 #include "trap.h"
 
-void TtyTrapHandler(UserContext* ctx) {
+void TtyTrapTxHandler(UserContext* ctx) {
    // get whether this is a tx/rx operation
    //
    // if it's read, then a complete line of input is ready to be read
@@ -10,5 +10,9 @@ void TtyTrapHandler(UserContext* ctx) {
    // inform anyone waiting (such as a write handler) that this operation has succeeded
    //
    // update scheduler on fulfillment of requirements for waiters
+}
+
+void TtyTrapRxHandler(UserContext* ctx) {
+
 }
 
