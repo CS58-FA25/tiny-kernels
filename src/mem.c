@@ -86,7 +86,7 @@ int SetKernelBrk(void *addr_ptr)
     }
 
     /* current kernel_brk is a page number (vpn) */
-    unsigned int cur_vpn = (unsigned int) kernel_brk; /* assume kernel_brk is already VPN */
+    unsigned int cur_vpn = (unsigned int) kernel_brk_page; /* assume kernel_brk is already VPN */
 
     /* Grow heap: map pages for VPNs [cur_vpn .. target_vpn-1] */
     while (cur_vpn < target_vpn) {
@@ -126,6 +126,6 @@ int SetKernelBrk(void *addr_ptr)
     }
 
     /* update kernel_brk (store vpn) */
-    kernel_brk = (int) target_vpn;
+    kernel_brk_page = (int) target_vpn;
     return 0;
 }

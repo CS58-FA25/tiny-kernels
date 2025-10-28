@@ -75,10 +75,12 @@ extern queue_t *zombie_queue;
 
 extern int proc_table_len;
 extern PCB **proc_table;
+extern int *available_pids;
 
 PCB *create_PCB(void);
 void InitializeProcQueues(void);
 void delete_pcb(PCB *process);
 void copy_pt(PCB *parent, PCB *child);
+int find_freeppid(void);
 
 #endif /* PROC_H */

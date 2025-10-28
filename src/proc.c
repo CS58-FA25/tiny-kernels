@@ -113,3 +113,18 @@ void delete_PCB(PCB *process) {
     delete_queue(process->children_processes);
     
 }
+
+int find_freeppid(void) {
+    if (available_pids == NULL) {
+        TracePrintf(0, "find_freeppid: available_pids array is not initialized.\n");
+        return INVALID_PID;
+    }
+    for (int i = 0; i < proc_table_len; i++) {
+        if (available_pids[i] == 1) {
+            available_pids[i] = 0;
+            return i;
+        }
+    }
+    TracePrintf(0, "find_freeppid: Couldn't find a free pid for the process");
+    return INVALID_PID;
+}

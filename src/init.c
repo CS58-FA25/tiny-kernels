@@ -4,7 +4,7 @@
 #include <yalnix.h>
 #include <hardware.h> 
 #include "ykernel.h"
-#include "kernel.c"
+#include "kernel.h"
 
 
 void initializeVM() {
@@ -38,7 +38,7 @@ void initializeFreeFrameList(int pmem_size) {
     nframes = pmem_size / PAGESIZE;
     free_nframes = 0;
     frame_table = (frame_desc_t*)malloc(sizeof(frame_desc_t) * nframes);
-    int kernel_brk_pfn = kernel_brk;
+    int kernel_brk_pfn = kernel_brk_page;
     int stack_base_pfn= DOWN_TO_PAGE(KERNEL_STACK_BASE) >> PAGESHIFT;
     int stack_limit_pfn = UP_TO_PAGE(KERNEL_STACK_LIMIT) >> PAGESHIFT;
 
@@ -61,14 +61,9 @@ void initializeFreeFrameList(int pmem_size) {
 
 void InitializeProcTable(void) {
     proc_table_len = MAX_PROCS;
-    proc_table = malloc(sizeof(PCB *) * proc_table_len);
-    if (!proc_table) {
-        TracePrintf(KERNEL_TRACE_LEVEL, "Out of memory allocating proc_table\n");
-        Halt();
-    }
-
-    for (int i = 0; i < MAX_PROCS; i++) {
-        proc_table[i] = create_PCB();
+    available_pids = malloc(sizeof(int) * proc_table_len);
+    for (int i = 0; i < proc_table_len; i++) {
+        available_pids[i] = 1;
     }
 }
 
