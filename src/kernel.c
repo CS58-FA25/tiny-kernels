@@ -2,25 +2,9 @@
 #include <yalnix.h>
 #include <hardware.h> 
 #include "ykernel.h"
+#include "kernel.h"
 #include "proc.h"
 
-/* ================ Global Variables ================= */
-#define KERNEL_TRACE_LEVEL   3
-extern int kernel_brk;
-
-/* =============== Configuration Constants ================ */
-
-#define MAX_PROCS        64        /* size of proc table/array */
-#define IDLE_PID         0         /* pid reserved for the kernel idle process */
-#define INVALID_PID      (-1)  /* Entries in the processes table that have this value mean that this pid is free to use */
-
-#define KERNEL_STACK_PAGES   2     /* kernel stack size in pages */
-#define KERNEL_STACK_SIZE    (KERNEL_STACK_PAGES * PAGESIZE)
-
-/* Kernel return codes */
-#define SUCCESS  (0)
-#define ERROR    (-1)
-#define KILL     (-2)
 
 
 /* ================== Terminals ================== */
@@ -41,6 +25,7 @@ typedef struct terminal {
 
 void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 {
+    kernel_brk_page = _orig_kernel_brk_page;
     TracePrintf(KERNEL_TRACE_LEVEL, "Entering KernelStart");
     kernel_brk = _orig_kernel_brk_page;
     initializeFreeFrameList(pmem_size);

@@ -6,7 +6,6 @@
 #include "ykernel.h"   /* contains PCB type if you put it there */
 #include "queue.h"
 
-#define MAX_PROCS        64        /* size of proc table/array */
 #define IDLE_PID         0         /* pid reserved for the kernel idle process */
 #define INVALID_PID      (-1)  /* Entries in the processes table that have this value mean that this pid is free to use */
 
@@ -68,14 +67,14 @@ typedef struct pcb {
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
 };
 
-
 extern PCB *idle_proc;
 extern PCB *current_proc;
 extern queue_t *ready_queue;
 extern queue_t *blocked_queue;
 extern queue_t *zombie_queue;
 
-
+extern int proc_table_len;
+extern PCB **proc_table;
 
 PCB *create_PCB(void);
 void InitializeProcQueues(void);

@@ -17,7 +17,7 @@ void InitializeProcQueues(void) {
     }
 
     blocked_queue = create_queue();
-    if (ready_queue == NULL) {
+    if (blocked_queue == NULL) {
         TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
         Halt();
     }

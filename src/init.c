@@ -61,25 +61,17 @@ void initializeFreeFrameList(int pmem_size) {
 
 void InitializeProcTable(void) {
     proc_table_len = MAX_PROCS;
-    proc_table = malloc(sizeof(PCB) * proc_table_len);
+    proc_table = malloc(sizeof(PCB *) * proc_table_len);
     if (!proc_table) {
         TracePrintf(KERNEL_TRACE_LEVEL, "Out of memory allocating proc_table\n");
         Halt();
     }
 
-    /* mark all as free and build pid free list */
-    pid_free_head = 0;
     for (int i = 0; i < MAX_PROCS; i++) {
-        proc_table[i].pid = i;
-        proc_table[i].state = PROC_FREE;
-        proc_table[i].ppid = -1;
-        proc_table[i].ptbr = NULL;
-        proc_table[i].ptlr = 0;
-        proc_table[i].next = NULL; // important: scheduler owns this field
-        proc_table[i].waiting_for_child_pid = -1;
-        proc_table[i].last_run_tick = 0;
+        proc_table[i] = create_PCB();
     }
 }
+
 void InitializeInterruptVectorTable() {
     // interruptVector[TRAP_KERNEL] = &trap_kernel_handler
     // interruptVector[TRAP_CLOCK] = &trap_clock_handler

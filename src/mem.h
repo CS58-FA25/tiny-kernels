@@ -26,7 +26,7 @@ extern int free_nframes;
 extern pte_t *pt_region0;
 extern pte_t *pt_region1;
 
-int allocFrame(frame_desc_t usage);
+int allocFrame(frame_usage_t usage);
 void freeFrame(int pfn);
 int SetKernelBrk(void *addr_ptr);
 
