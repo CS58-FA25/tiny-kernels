@@ -27,4 +27,7 @@ void DiskTrapHandler(UserContext* ctx);
 // nop.c
 void NotImplementedTrapHandler(UserContext* ctx);
 
+// kernel.c
+void KernelTrapHandler(UserContext* ctx);
+
 #endif // TRAP_H
