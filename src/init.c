@@ -50,7 +50,7 @@ void initializeVM() {
     int kernel_stack_top = stack_limit_pfn;
 
     for (int vpn = 0; vpn < kernel_stack_top; vpn++) {
-        if ((vpn >= text_section_base_page && vpn < kernel_brk_page) || (vpn >= KERNEL_STACK_BASE && vpn < stack_limit_pfn)) {
+        if ((vpn >= text_section_base_page && vpn < kernel_brk_page)) {
             pt_region0[vpn].valid = 1;
             pt_region0[vpn].prot = PROT_READ | PROT_WRITE;
             pt_region0[vpn].pfn = vpn;
@@ -74,7 +74,7 @@ void initializeFreeFrameList(int pmem_size) {
 
     for (int i = 0; i < nframes; i++) {
         frame_table[i].pfn = i;
-        if (i >= text_section_base_page && i < kernel_brk_pfn || (i >= stack_base_pfn && i < stack_limit_pfn)) {
+        if (i >= text_section_base_page && i < kernel_brk_pfn) {
             frame_table[i].usage = FRAME_KERNEL;
             frame_table[i].owner_pid = IDLE_PID;
             frame_table[i].refcount = 1;
