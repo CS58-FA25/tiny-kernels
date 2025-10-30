@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.ejs": "html",
-        "hardware.h": "c"
+        "hardware.h": "c",
+        "__locale": "c"
     }
 }

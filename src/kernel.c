@@ -4,6 +4,7 @@
 #include "ykernel.h"
 #include "kernel.h"
 #include "proc.h"
+#include "mem.h"
 
 
 
@@ -33,7 +34,7 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     TracePrintf(1, "Initializing the free frame array...\n");
     initializeFreeFrameList(pmem_size);
 
-    TracePrintf(1, "Initializing and enabling virtual memory...\n");
+    TracePrintf(1, "Initializing virtual memory (creating region0 of page table and mapping to physical frames)...\n");
     initializeVM();
 
     TracePrintf(1, "Initializing the interrupt vector table....\n");
@@ -44,9 +45,13 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
+
     idle_proc = CreateIdlePCB(uctxt);
-    current_proc = idle_proc;
+    current_process = idle_proc;
+    EnableVM();
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
+    memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
+    return; // returns to user mode.
 
 }
 
@@ -82,7 +87,7 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
 
 void scheduler() {
     // while true:
-    //     next = Dequeue(ready_queue)
+    //     next = queueDequeue(ready_queue)
     //     if next == NULL:
     //         next = idle_pcb  // run idle if no ready processes
 
@@ -94,4 +99,104 @@ void scheduler() {
 
     //     // When we return here, current process has resumed
     //     HandlePendingTrapsOrSyscalls()
+}
+
+pte_t *InitializeKernelStackIdle(void) {
+    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
+    if (kernel_stack == NULL) {
+        TracePrintf(0, "InitializeKernelStackIdle: Failed to allocate memory for idle process Kernel Stack.\n");
+        return NULL;
+    }
+    for (int i = 0; i < KSTACK_PAGES; i++) {
+        int pfn = KSTACK_START_PAGE + i;
+        kernel_stack[i].valid = 1;
+        kernel_stack[i].pfn = pfn;
+        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
+
+        allocSpecificFrame(pfn, FRAME_KERNEL, -1);
+    }
+    return kernel_stack;
+}
+
+pte_t *InitializeKernelStackProcess(void) {
+    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
+    if (kernel_stack == NULL) {
+        TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate memory for idle process Kernel Stack.\n");
+        return NULL;
+    }
+    for (int i = 0; i < KSTACK_PAGES; i++) {
+        int pfn = allocFrame(FRAME_KERNEL, -1);
+        if (pfn == -1) {
+            TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
+            Halt();
+        }
+        int pfn = KSTACK_START_PAGE + i;
+        kernel_stack[i].valid = 1;
+        kernel_stack[i].pfn = pfn;
+        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
+    }
+    return kernel_stack;
+}
+
+int SetKernelBrk(void *addr_ptr)
+{
+    if (addr_ptr == NULL) {
+        TracePrintf(0, "SetKernelBrk: NULL addr\n");
+        return -1;
+    }
+
+    /* convert address to target VPN */
+    unsigned int target_vaddr = DOWN_TO_PAGE((unsigned int) addr_ptr);
+    unsigned int target_vpn  = target_vaddr >> PAGESHIFT;
+
+    /* bounds: cannot grow into kernel stack (stack base is virtual address) */
+    unsigned int stack_base_vpn = DOWN_TO_PAGE(KERNEL_STACK_BASE) >> PAGESHIFT;
+    if (target_vpn >= stack_base_vpn) {
+        TracePrintf(0, "SetKernelBrk: target collides with kernel stack\n");
+        return -1;
+    }
+
+    /* current kernel_brk is a page number (vpn) */
+    unsigned int cur_vpn = (unsigned int) kernel_brk_page; /* assume kernel_brk is already VPN */
+
+    /* Grow heap: map pages for VPNs [cur_vpn .. target_vpn-1] */
+    while (cur_vpn < target_vpn) {
+        int pfn = allocFrame(FRAME_KERNEL, -1);
+
+        if (pfn == -1) {
+            TracePrintf(0, "SetKernelBrk: out of physical frames\n");
+            return -1;
+        }
+
+        /* Map physical pfn into region0 VPN = cur_vpn */
+        MapRegion0VPN(cur_vpn, pfn);
+        cur_vpn++;
+    }
+
+    /* Shrink heap: unmap pages for VPNs [target_vpn .. cur_vpn-1] */
+    while (cur_vpn > target_vpn) {
+        cur_vpn--; /* handle the page at vpn = cur_vpn - 1 */
+
+        if (!vpn_in_region0(cur_vpn)) {
+            TracePrintf(0, "SetKernelBrk: shrink vpn out of range %u\n", cur_vpn);
+            return -1;
+        }
+
+        if (!pt_region0[cur_vpn].valid) {
+            TracePrintf(0, "SetKernelBrk: unmapping already-unmapped vpn %u\n", cur_vpn);
+            continue;
+        }
+
+        int pfn = (int) pt_region0[cur_vpn].pfn;
+
+        /* unmap */
+        UnmapRegion0(cur_vpn);
+
+        /* free the physical frame */
+        freeFrame(pfn);
+    }
+
+    /* update kernel_brk (store vpn) */
+    kernel_brk_page = (int) target_vpn;
+    return 0;
 }

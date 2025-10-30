@@ -2,7 +2,7 @@
 #include "ykernel.h"
 #include "proc.h"
 
-queue_t *create_queue() {
+queue_t *queueCreate() {
     queue_t *queue = malloc(sizeof(queue_t));
     if (queue) {
         queue->head = NULL;
@@ -11,7 +11,7 @@ queue_t *create_queue() {
     return queue;
 }
 
-void queue_remove(queue_t *queue, PCB *process) {
+void queueRemove(queue_t *queue, PCB *process) {
     if (queue == NULL) {
         TracePrintf(0, "queue: queue is Null. Can't remove process.\n");
         Halt();
@@ -28,14 +28,14 @@ void queue_remove(queue_t *queue, PCB *process) {
 
 }
 
-void enqueue(queue_t *queue, PCB *process) {
+void queueEnqueue(queue_t *queue, PCB *process) {
     if (queue == NULL) {
-        TracePrintf(0, "queue: queue is Null. Can't enqueue.\n");
+        TracePrintf(0, "queue: queue is Null. Can't queueEnqueue.\n");
         Halt();
     }
     
     if (process == NULL) {
-        TracePrintf(0, "process: process is Null. Can't enqueue.\n");
+        TracePrintf(0, "process: process is Null. Can't queueEnqueue.\n");
         Halt();
     }
     process->next = NULL;
@@ -46,24 +46,33 @@ void enqueue(queue_t *queue, PCB *process) {
         queue->tail->next = process;
     }
     queue->tail = process;
-    TracePrintf(1, "Enqueued PCB (%d pid)", process->pid);
+    TracePrintf(1, "queueEnqueued PCB (%d pid)", process->pid);
 }
 
-PCB *dequeue(queue_t *queue) {
+PCB *queueDequeue(queue_t *queue) {
     if (queue == NULL) {
         TracePrintf(0, "queue: queue is Null. Can't deqeue.\n");
         Halt();
     }
     PCB *p = queue->head;
     if (p == NULL) {
-        TracePrintf(0, "Dequeue: Queue is Empty. Can't deque.\n");
+        TracePrintf(0, "queueDequeue: Queue is Empty. Can't deque.\n");
         return NULL;
     }
     
     queue->head = p->next;
-    TracePrtinf(1, "Dequeue: Dequeued process (%d pid)\n", p->pid);
+    TracePrtinf(1, "queueDequeue: queueDequeued process (%d pid)\n", p->pid);
     return p;
 }
+
+void queueDelete(queue_t *queue) {
+    if (queue == NULL) {
+        TracePrintf(0, "queueDelete: queue is null. Can't delete.\n");
+        Halt();
+    }
+    free(queue);
+}
+
 
 int is_in_queue(queue_t * queue, PCB *process) {
     if (queue == NULL) {
@@ -88,14 +97,6 @@ int is_empty(queue_t *queue) {
         TracePrintf(0, "queue: Queue is Null. Can't check if it's empty or not.\n");
         Halt();
     }
-    if (queue->head == NULL) return 0;
-    else return 1;
+    return (queue->head == NULL);
 }
 
-void delete_queue(queue_t *queue) {
-    if (queue == NULL) {
-        TracePrintf(0, "delete_queue: queue is null. Can't delete.\n");
-        Halt();
-    }
-    free(queue);
-}

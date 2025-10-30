@@ -9,38 +9,17 @@ ready_queue = NULL;
 blocked_queue = NULL;
 zombie_queue = NULL;
 
-
-void InitializeProcQueues(void) {
-    ready_queue = create_queue();
-    if (ready_queue == NULL) {
-        TracePrintf(0, "ready_queue: Couldn't allocate memory for ready queue.\n");
-        Halt();
-    }
-
-    blocked_queue = create_queue();
-    if (blocked_queue == NULL) {
-        TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
-        Halt();
-    }
-
-    zombie_queue = create_queue();
-    if (zombie_queue == NULL) {
-        TracePrintf(0, "zombie_queue: Couldn't allocate memory for zombie queue.\n");
-        Halt();
-    }
-}
-
-PCB *create_PCB() {
+PCB *allocNewPCB() {
     PCB *process = (PCB *)malloc(sizeof(PCB));
     if (process == NULL) {
-        TracePrintf(0, "create_PCB: Failed to allocate memory for PCB.\n");
+        TracePrintf(0, "allocNewPCB: Failed to allocate memory for PCB.\n");
         return NULL;
     }
 
     // Zero out the struct to avoid garbage values
     memset(process, 0, sizeof(PCB));
 
-    process->pid = find_freeppid();
+    process->pid = INVALID_PID;
     process->ppid = INVALID_PID;      // no parent yet
     process->state = PROC_FREE;
     process->exit_status = 0;
@@ -51,16 +30,14 @@ PCB *create_PCB() {
         free(process);
         return NULL;
     }
-    memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t));
+    memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t)); // All entries are invalid
     process->ptlr = NUM_PAGES_REGION1;
-    WriteRegister(REG_PTBR1, (unsigned int)process->ptbr);
-    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
     
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_heap_end_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_stack_base_vaddr = USER_STACK_BASE;
 
-    process->kstack_base = KERNEL_STACK_BASE;
+    process->kstack = NULL;
 
     // Initialize context structs (no garbage)
     memset(&process->user_context, 0, sizeof(UserContext));
@@ -69,9 +46,9 @@ PCB *create_PCB() {
     process->next = NULL;
     process->prev = NULL;
     process->parent = NULL;
-    process->children_processes = create_queue();
+    process->children_processes = queueCreate();
     if (process->children_processes == NULL) {
-        TracePrintf(0, "create_PCB: Failed to create children queue.\n");
+        TracePrintf(0, "allocNewPCB: Failed to create children queue.\n");
         free(process->ptbr);
         free(process);
         return NULL;
@@ -80,25 +57,22 @@ PCB *create_PCB() {
     process->waiting_for_child_pid = INVALID_PID;
     process->last_run_tick = 0;
 
-    TracePrintf(1, "create_PCB: New PCB created at %p\n", process);
+    TracePrintf(1, "allocNewPCB: New PCB created at %p\n", process);
     return process;
 
 }
 
-void delete_PCB(PCB *process) {
+void deletePCB(PCB *process) {
     if (process == NULL) {
         TracePrintf(0, "delete_PCB: Process is null.\n");
         Halt();
-    }
-    if (process->pid != INVALID_PID) {
-        available_pids[process->pid] = 0;
     }
     if (process->children_processes != NULL) {
         for (PCB *child = process->children_processes->head; child != NULL; child = child->next) {
             child->parent = NULL;
             child->state = PROC_ORPHAN;
         }
-        delete_queue(process->children_processes);
+        queueDelete(process->children_processes);
     }
 
     if (process->next != NULL) {
@@ -115,48 +89,57 @@ void delete_PCB(PCB *process) {
         }
     }
     free(process->ptbr);
-    delete_queue(process->children_processes);
+    queueDelete(process->children_processes);
     
 }
 
-int find_freeppid(void) {
-    if (available_pids == NULL) {
-        TracePrintf(0, "find_freeppid: available_pids array is not initialized.\n");
-        return INVALID_PID;
+PCB *getFreePCB(void) {
+    if (proc_table == NULL) {
+        Traceprintf(0, "getFreePCB: The process table is not initialized.\n");
+        return NULL;
     }
-    for (int i = 0; i < proc_table_len; i++) {
-        if (available_pids[i] == 1) {
-            available_pids[i] = 0;
-            return i;
+    for (int i = 0; i < MAX_PROCS; i++) {
+        if (proc_table[i]->state = PROC_FREE) {
+            return proc_table[i];
         }
     }
-    TracePrintf(0, "find_freeppid: Couldn't find a free pid for the process");
-    return INVALID_PID;
+    return NULL;
+}
+
+void InitializeProcQueues(void) {
+    ready_queue = queueCreate();
+    if (ready_queue == NULL) {
+        TracePrintf(0, "ready_queue: Couldn't allocate memory for ready queue.\n");
+        Halt();
+    }
+
+    blocked_queue = queueCreate();
+    if (blocked_queue == NULL) {
+        TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
+        Halt();
+    }
+
+    zombie_queue = queueCreate();
+    if (zombie_queue == NULL) {
+        TracePrintf(0, "zombie_queue: Couldn't allocate memory for zombie queue.\n");
+        Halt();
+    }
 }
 
 PCB *CreateIdlePCB(UserContext *uctxt) {
-    idle_proc = create_PCB();
+    idle_proc = getFreePCB();
     if (idle_proc == NULL) {
         TracePrintf(0, "CreateIdlePCB: Failed to create the idle process pcb.\n");
         Halt();
     }
     // Allocating memory for user stack. Initially it's one page and going to be at the top of region 1
     int ustack_vpn = (VMEM_1_LIMIT - PAGESIZE - VMEM_1_BASE) >> PAGESHIFT;
-    int ustack_pfn = allocFrame(FRAME_USER);
+    int ustack_pfn = allocFrame(FRAME_USER, 0);
     MapPage(idle_proc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
 
-    idle_proc->kstack_base = malloc(KERNEL_STACK_SIZE);
+    idle_proc->kstack = InitializeKernelStackIdle();
     memcpy(&idle_proc->user_context, uctxt, sizeof(UserContext));
     (&(idle_proc->user_context))->pc = (void *)DoIdle;
-
-    // Kernel Stack
-    unsigned int kstack_base = VMEM_0_LIMIT - KERNEL_STACK_SIZE;
-    idle_proc->kstack_base = (void *)kstack_base;
-    for (int i = 0; i < KSTACK_PAGES; i++) {
-        int pfn = allocFrame(FRAME_KERNEL);
-        MapPage(pt_region0, KSTACK_START_PAGE + i, pfn, PROT_READ | PROT_WRITE);
-    }
-    idle_proc->user_stack_base_vaddr = VMEM_1_LIMIT - PAGESIZE;
 
     idle_proc->pid = 0;
     idle_proc->ppid = INVALID_PID;
@@ -172,3 +155,4 @@ void DoIdle(void) {
         Pause();
     }
 }
+

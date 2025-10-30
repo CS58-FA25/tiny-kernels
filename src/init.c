@@ -1,14 +1,9 @@
-#include "traps/trap.h" // TrapHandler, NotImplementedTrapHandler, ClockTrapHandler, ...
-#include "ykernel.h"
-
-#include <hardware.h> // yalnix: hardware.h
-#include <stdlib.h>
-#include <stdio.h>
-#include <yalnix.h>
-#include <hardware.h> 
+#include "hardware.h"
+#include "yalnix.h"
 #include "ykernel.h"
 #include "kernel.h"
 #include "mem.h"
+#include "traps/trap.h"
 
 // Create trap handlers, set them all to not implemented.
 // Since this is still being developed and all of them might not be implemented,
@@ -39,31 +34,53 @@ static TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
    NotImplementedTrapHandler,
 };
 
-void initializeVM() {
+void InitializeVM() {
 
     TracePrintf(0, "Building initial page tables");
 
-    pt_region0 = malloc(sizeof(pte_t) * MAX_PT_LEN);
-    memset(pt_region0, 0, sizeof(pte_t) * MAX_PT_LEN); // Makes the whole table clean and invalid
+    pt_region0 = malloc(sizeof(pte_t) * VMEM_0_SIZE);
+    memset(pt_region0, 0, sizeof(pte_t) * VMEM_0_SIZE); // Makes the whole table clean and invalid
 
     int stack_limit_pfn = UP_TO_PAGE(KERNEL_STACK_LIMIT) >> PAGESHIFT;
     int kernel_stack_top = stack_limit_pfn;
 
-    for (int vpn = 0; vpn < kernel_stack_top; vpn++) {
-        if ((vpn >= text_section_base_page && vpn < kernel_brk_page)) {
-            pt_region0[vpn].valid = 1;
-            pt_region0[vpn].prot = PROT_READ | PROT_WRITE;
-            pt_region0[vpn].pfn = vpn;
-        }
+    // Mapping the kernel text, data, heap segment. The frames for these are already allocated
+    for (int vpn = _first_kernel_text_page; vpn < _first_kernel_data_page; vpn++) {
+        pt_region0[vpn].valid = 1;
+        pt_region0[vpn].prot = PROT_READ | PROT_EXEC;
+        pt_region0[vpn].pfn = vpn;
     }
 
-    WriteRegister(REG_PTBR0, (unsigned int) pt_region0);
-    WriteRegister(REG_PTLR0, MAX_PT_LEN);
+    for (int vpn = _first_kernel_data_page; vpn < _orig_kernel_brk_page; vpn++) {
+        pt_region0[vpn].valid = 1;
+        pt_region0[vpn].prot = PROT_READ | PROT_WRITE;
+        pt_region0[vpn].pfn = vpn;
+    }
+
+    // Mapping the kernel stack in region0. The frames for these are not allocated yet.
+    // They are allocated first time when we allocate kernel stack for the first process (idle)
+    for (int vpn = KSTACK_START_PAGE; vpn < KSTACK_START_PAGE + KSTACK_PAGES; vpn++) {
+        pt_region0[vpn].valid = 1;
+        pt_region0[vpn].prot = PROT_READ | PROT_WRITE;
+        pt_region0[vpn].pfn = vpn;
+    }
+
+    // Writing region 0 address into the corresponding register
+    // Writing the number of entries of region0 into the corresponding register
+
     TracePrintf(0, "VM initialization complete");
 
 }
 
-void initializeFreeFrameList(int pmem_size) {
+void EnableVM() {
+    WriteRegister(REG_PTBR0, (unsigned int) pt_region0);
+    WriteRegister(REG_PTLR0, NUM_PAGES_REGION0);
+    WriteRegister(REG_PTBR1, (unsigned int) current_process->ptbr);
+    WriteRegister(REG_PTBR1, current_process->ptlr);
+    WriteRegister(REG_VM_ENABLE, 1);
+}
+
+void InitializeFreeFrameList(int pmem_size) {
     TracePrintf(0, "Initializing free frame list");
     nframes = pmem_size / PAGESIZE;
     free_nframes = 0;
@@ -77,11 +94,9 @@ void initializeFreeFrameList(int pmem_size) {
         if (i >= text_section_base_page && i < kernel_brk_pfn) {
             frame_table[i].usage = FRAME_KERNEL;
             frame_table[i].owner_pid = IDLE_PID;
-            frame_table[i].refcount = 1;
         } else {
             frame_table[i].usage = FRAME_FREE;
             frame_table[i].owner_pid = -1;
-            frame_table[i].refcount = 0;
             free_nframes += 1;
         }
     }
@@ -90,21 +105,23 @@ void initializeFreeFrameList(int pmem_size) {
 }
 
 void InitializeProcTable(void) {
-    proc_table_len = MAX_PROCS;
-    available_pids = malloc(sizeof(int) * proc_table_len);
-    for (int i = 0; i < proc_table_len; i++) {
-        available_pids[i] = 1;
-    }
+    proc_table = malloc(sizeof(PCB) * MAX_PROCS);
+    memset(proc_table, 0, sizeof(PCB) * MAX_PROCS);
+    for (int i = 0; i < MAX_PROCS; i++) {
+        PCB *pcb = allocNewPCB();
+        int pid = helper_new_pid(pcb->ptbr);
+        proc_table[i]->pid = pid;
+    }   
 }
 
-void InitializeInterruptVectorTable() {
+void InitializeInterruptVectorTable(void) {
     TRAP_VECTOR[TRAP_KERNEL] = &KernelTrapHandler;
     TRAP_VECTOR[TRAP_CLOCK] = &ClockTrapHandler;
     // TODO:
     // These are currently unimplemented (Checkpoint 2)
     // Add these in as they are implemented
     // TRAP_ILLEGAL,TRAP_MEMORY,TRAP_MATH,TRAP_TTY_RECEIVE,TRAP_TTY_TRANSMIT
-    WriteRegister(REG_VECTOR_BASE, &TRAP_VECTOR);
+    WriteRegister(REG_VECTOR_BASE, (unsigned int) TRAP_VECTOR);
 }
 
 void InitializeTerminals() {

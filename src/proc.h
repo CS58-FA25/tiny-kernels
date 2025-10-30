@@ -31,27 +31,22 @@ typedef struct pcb {
     int ppid;                /* parent pid (-1 if none) */
     int exit_status;         /* status for Wait; valid if PROC_ZOMBIE */
 
-    /* Region 1 page table: kernel stores a pointer to an in-memory page table.
-     * The MMU registers REG_PTBR1/REG_PTLR1 are set to these during context-switch. */
+    /* The MMU registers REG_PTBR1/REG_PTLR1 are set to these during context-switch. */
     pte_t *ptbr;             /* virtual address of page table for region 1 */
-    unsigned int ptlr;
-    /* Full user CPU state snapshot.  The handout requires storing the full
-     * UserContext in the PCB (not just a pointer) so it can be restored later. */
-    UserContext user_context;
+    unsigned int ptlr;       /* number of entries in this page table for region 1*/
 
-    /* Kernel context & kernel stack - used by KernelContextSwitch routines.
-     * The type KernelContext is provided in hardware.h and is opaque. */
+    UserContext user_context; /* Full user cpu snapshow*/
+
+    /* Kernel context & kernel stack */
     KernelContext kernel_context;
-
-    /* Kernel stack bookkeeping: kernel allocates kernel stack frames in Region 0 */
-    void *kstack_base;       /* base virtual address of the kernel stack (Region 0) */
+    pte_t *kstack;       /* page table to map to the frames allocated from the process kernel stack*/
 
     /* User-region memory accounting */
     unsigned int user_heap_start_vaddr; /* page-aligned lowest heap address (inclusive) */
     unsigned int user_heap_end_vaddr;   /* current brk (lowest not-in-use address) */
     unsigned int user_stack_base_vaddr; /* top of user stack (initial) */
 
-    /* Scheduling queue pointers (singly linked for simplicity) */
+    /* Scheduling queue pointers */
     PCB *next;
     PCB *prev;
     PCB *parent;
@@ -65,23 +60,86 @@ typedef struct pcb {
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
 };
 
-extern PCB *idle_proc;
-extern PCB *current_proc;
-extern queue_t *ready_queue;
-extern queue_t *blocked_queue;
-extern queue_t *zombie_queue;
+extern PCB *idle_proc; // Pointer to the idle process PCB
+extern PCB *current_process; // Pointer to the current running process PCB
+extern queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
+extern queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
+extern queue_t *zombie_queue; // A queue of processes that have terminated but whose parent has not yet called Wait()
 
-extern int proc_table_len;
-extern PCB **proc_table;
-extern int *available_pids;
+extern PCB **proc_table; // List of processes. Not all of them are actual processes but are pointers to processes that could be initialized by LoadProgram
 
-PCB *create_PCB(void);
+/**
+ * ======================== Description =======================
+ * @brief Allocates and initializes a new Process Control Block (PCB).
+ * ======================== Behavior ==========================
+ * - Allocates memory for the PCB struct and its region 1 page table.
+ * - Initializes default fields such as PID, PPID, and state.
+ * - Sets up internal queues and zeroes out kernel/user contexts.
+ * ======================== Returns ===========================
+ * @returns Pointer to a valid PCB on success.
+ * @returns NULL if any allocation fails.
+ * ======================== Notes =============================
+ * - Each PCB has its own children queue to track forked processes.
+ * - Does not yet allocate a kernel stack; that’s done separately.
+ */
+PCB *allocNewPCB(void); // Allocates memory and initializes one PCB (used only during kernel init)
+
+/**
+ * ======================== Description =======================
+ * @brief Cleans up and frees a PCB and its associated resources.
+ * ======================== Behavior ==========================
+ * - Orphans any child processes (sets their parent to NULL).
+ * - Frees region 1 page table and the children queue.
+ * - Removes PCB from any linked list if applicable.
+ * ======================== Notes =============================
+ * - Does NOT yet free user memory pages (handled separately in VM cleanup).
+ * - Should only be called when process is fully terminated.
+ */
+void deletePCB(PCB *process);
+
+/**
+ * ======================== Description =======================
+ * @brief Returns a free PCB slot from the global process table.
+ * ======================== Behavior ==========================
+ * - Iterates over the process table to find a PCB marked `PROC_FREE`.
+ * ======================== Returns ===========================
+ * @returns Pointer to a free PCB if found, NULL otherwise.
+ */
+PCB *getFreePCB(void); // Retrieves an unused PCB from proc_table for process creation
+
+/**
+ * ======================== Description =======================
+ * @brief Initializes the global process queues used by the scheduler.
+ * ======================== Behavior ==========================
+ * - Allocates and initializes the ready, blocked, and zombie queues.
+ * - Each queue is created using `queueCreate()` and stored in global vars.
+ * ======================== Notes =============================
+ * - Called once during kernel startup before any process is created.
+ * - Halts the system if any allocation fails to prevent inconsistent state.
+ */
 void InitializeProcQueues(void);
-void delete_pcb(PCB *process);
-void copy_pt(PCB *parent, PCB *child);
-int find_freeppid(void);
 
+/**
+ * ======================== Description =======================
+ * @brief Creates and initializes the idle process.
+ * ======================== Behavior ==========================
+ * - Allocates a PCB for the idle process.
+ * - Allocates one user stack page in region 1.
+ * - Initializes kernel stack using `InitializeKernelStackIdle()`.
+ * - Sets up user context to run `DoIdle()`.
+ * ======================== Notes =============================
+ * - PID = 0, PPID = INVALID_PID.
+ * - This process never terminates; it runs when no other is ready.
+ */
 PCB *CreateIdlePCB(UserContext *uctxt);
+
+/**
+ * ======================== Description =======================
+ * @brief Entry point for the idle process.
+ * ======================== Behavior ==========================
+ * - Loops forever, calling `Pause()` to yield CPU when possible.
+ * - Used as the background process when no others are runnable.
+ */
 void DoIdle(void);
 
 #endif /* PROC_H */
