@@ -108,6 +108,8 @@ void deletePCB(PCB *process);
  */
 PCB *getFreePCB(void); // Retrieves an unused PCB from proc_table for process creation
 
+void CloneRegion1(PCB *pcb_from, PCB *pcb_to);
+
 /**
  * ======================== Description =======================
  * @brief Initializes the global process queues used by the scheduler.
