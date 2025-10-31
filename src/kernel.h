@@ -10,6 +10,7 @@
 #define KERNEL_STACK_SIZE (KERNEL_STACK_LIMIT - KERNEL_STACK_BASE)
 #define KSTACK_PAGES (KERNEL_STACK_MAXSIZE / PAGESIZE)
 #define KSTACK_START_PAGE (KERNEL_STACK_BASE >> PAGESHIFT)
+#define SCRATCH_ADDR (KERNEL_STACK_BASE - PAGESIZE)
 
 extern PCB pcb_table[MAX_PROCS];
 pte_t *ptbr0;
@@ -86,6 +87,20 @@ pte_t *InitializeKernelStackIdle(void);
 pte_t *InitializeKernelStackProcess(void);
 
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p);
+/**
+ * ======================== Description =======================
+ * @brief Clones the current process's kernel context and kernel stack
+ *        into the child process PCB during Fork().
+ *
+ * ======================== Parameters ========================
+ * @param kc_in      Pointer to parent's saved kernel context.
+ * @param new_pcb_p  Pointer to the child PCB receiving the copy.
+ * @param unused     Required by the callback signature (unused).
+ *
+ * ======================== Returns ===========================
+ * @returns `kc_in` — makes parent execute first; child returns later
+ *          from same point with copied state.
+ */
 KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused);
 
 #endif
