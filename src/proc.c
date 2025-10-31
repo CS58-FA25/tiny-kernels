@@ -107,6 +107,22 @@ PCB *getFreePCB(void) {
     return NULL;
 }
 
+void CloneRegion1(PCB *pcb_from, PCB *pcb_to) {
+    pte_t *pt_region1_from = pcb_from->ptbr;
+    pte_t *pt_region1_to = pcb_to->ptbr;
+    for (int i = 0; i < NUM_PAGES_REGION1; i++) {
+        if (pt_region1_from[i].valid == 1) {
+            int pfn_to = allocFrame(FRAME_USER, pcb_to->pid);
+            int pfn_from = pt_region1_from[i].pfn;
+            CloneFrame(pfn_from, pfn_to);
+
+            pt_region1_to[i].pfn = pfn_to;
+            pt_region1_to[i].prot = pt_region1_from[i].prot;
+            pt_region1_to[i].valid = 1;
+        }
+    }
+}
+
 void InitializeProcQueues(void) {
     ready_queue = queueCreate();
     if (ready_queue == NULL) {
