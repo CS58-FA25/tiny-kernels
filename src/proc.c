@@ -19,7 +19,6 @@ PCB *allocNewPCB() {
     // Zero out the struct to avoid garbage values
     memset(process, 0, sizeof(PCB));
 
-    process->pid = INVALID_PID;
     process->ppid = INVALID_PID;      // no parent yet
     process->state = PROC_FREE;
     process->exit_status = 0;
@@ -32,6 +31,8 @@ PCB *allocNewPCB() {
     }
     memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t)); // All entries are invalid
     process->ptlr = NUM_PAGES_REGION1;
+    process->pid = helper_new_pid(process->ptbr);
+
     
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_heap_end_vaddr = USER_MEM_START; // Reassign after loadProgram is called
@@ -127,26 +128,24 @@ void InitializeProcQueues(void) {
 }
 
 PCB *CreateIdlePCB(UserContext *uctxt) {
-    idle_proc = getFreePCB();
-    if (idle_proc == NULL) {
+    idleProc = getFreePCB();
+    if (idleProc == NULL) {
         TracePrintf(0, "CreateIdlePCB: Failed to create the idle process pcb.\n");
         Halt();
     }
     // Allocating memory for user stack. Initially it's one page and going to be at the top of region 1
     int ustack_vpn = (VMEM_1_LIMIT - PAGESIZE - VMEM_1_BASE) >> PAGESHIFT;
     int ustack_pfn = allocFrame(FRAME_USER, 0);
-    MapPage(idle_proc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
+    MapPage(idleProc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
 
-    idle_proc->kstack = InitializeKernelStackIdle();
-    memcpy(&idle_proc->user_context, uctxt, sizeof(UserContext));
-    (&(idle_proc->user_context))->pc = (void *)DoIdle;
+    idleProc->kstack = InitializeKernelStackIdle();
+    memcpy(&idleProc->user_context, uctxt, sizeof(UserContext));
+    (&(idleProc->user_context))->pc = (void *)DoIdle;
 
-    idle_proc->pid = 0;
-    idle_proc->ppid = INVALID_PID;
-    idle_proc->state = PROC_RUNNING;
+    idleProc->state = PROC_RUNNING;
 
-    TracePrintf(1, "Created Idle process with %d PID.\n", idle_proc->pid);
-    return idle_proc;
+    TracePrintf(1, "Created Idle process with %d PID.\n", idleProc->pid);
+    return idleProc;
 }
 
 void DoIdle(void) {

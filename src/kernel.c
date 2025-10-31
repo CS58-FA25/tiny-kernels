@@ -41,6 +41,9 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 
     TracePrintf(1, "Initializing virtual memory (creating region0 of page table and mapping to physical frames)...\n");
     initializeVM();
+    EnableVM();
+    is_vm_enabled = 1;
+
 
     TracePrintf(1, "Initializing the interrupt vector table....\n");
     initializeInterruptVectorTable();
@@ -51,30 +54,47 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
 
-    idle_proc = CreateIdlePCB(uctxt);
-    current_process = idle_proc;
-    EnableVM();
+    idleProc = CreateIdlePCB(uctxt);
+    current_process = idleProc;
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
-    memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
+
+    char *name = (cmd_args != NULL && cmd_args[0] != NULL) ? cmd_args[0] : "init";
+
+    initProc = getFreePCB();
+    if (initProc == NULL) {
+        TracePrintf(0, "Failed to create the init process pdb.\n");
+    }
+    initProc->kstack = InitializeKernelStackProcess();
+    memcpy(&(initProc->user_context), uctxt, sizeof(UserContext));
+
+
+
     return; // returns to user mode.
 
 }
 
-
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
-    // curr = (PCB *)curr_pcb_p
-    // next = (PCB *)next_pcb_p
+    PCB *curr = (PCB *)curr_pcb_p;
+    PCB *next = (PCB *)next_pcb_p;
+    memcpy(&(curr->kernel_context), kc_in, sizeof(KernelContext));
 
-    // // Save kernel context of current process
-    // memcpy(&curr->kctx, kc_in, sizeof(KernelContext))
+    // Switch kernel stacks in region 0 from current process to next process
+    pte_t *next_kstack = next->kstack;
+    for(int i = 0; i < KSTACK_PAGES; i++) {
+        int vpn = KERNEL_STACK_BASE + i;
+        pt_region0[vpn] = next_kstack[i];
+    }
 
-    // // Switch page tables for region 1
-    // WriteRegister(REG_PTBR1, (unsigned int) next->ptbr1)
-    // WriteRegister(REG_PTLR1, MAX_PT_LEN)
-    // WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1)
+    // Setting the current process to be the new one
+    current_process = next;
+    next->state = PROC_RUNNING;
+    
+    // Switch pointers to region 1 page table in CPU registers.
+    WriteRegister(REG_PTBR1, next->ptbr);
+    WriteRegister(REG_PTLR1, next->ptlr);
+    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
 
-    // current = next
-    // return &(next->kctx)
+    return &(next->kernel_context);
 }
 
 KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
