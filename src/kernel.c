@@ -130,7 +130,7 @@ pte_t *InitializeKernelStackProcess(void) {
             TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
             Halt();
         }
-        int pfn = KSTACK_START_PAGE + i;
+        
         kernel_stack[i].valid = 1;
         kernel_stack[i].pfn = pfn;
         kernel_stack[i].prot = PROT_WRITE | PROT_READ;
