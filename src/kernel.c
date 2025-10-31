@@ -191,6 +191,8 @@ int SetKernelBrk(void *addr_ptr)
 
         /* unmap */
         UnmapRegion0(cur_vpn);
+        WriteRegister(REG_TLB_FLUSH, (unsigned int) cur_vpn);
+
 
         /* free the physical frame */
         freeFrame(pfn);
