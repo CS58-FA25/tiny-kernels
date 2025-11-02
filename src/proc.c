@@ -6,11 +6,11 @@
 #include "mem.h"
 
 
-PCB *idle_proc = NULL; // Pointer to the idle process PCB
-PCB *current_process = NULL; // Pointer to the current running process PCB
-queue_t *ready_queue = NULL; // A FIFO queue of processes ready to be executed by the cpu
-queue_t *blocked_queue = NULL; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
-queue_t *zombie_queue = NULL; // A queue of processes that have terminated but whose parent has not yet called Wait()
+PCB *idle_proc; // Pointer to the idle process PCB
+PCB *current_process; // Pointer to the current running process PCB
+queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
+queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
+queue_t *zombie_queue; // A queue of processes that have terminated but whose parent has not yet called Wait()
 
 PCB **proc_table;
 
@@ -103,11 +103,26 @@ PCB *getFreePCB(void) {
         TracePrintf(0, "getFreePCB: The process table is not initialized.\n");
         return NULL;
     }
+    
+    // Look for an empty (NULL) slot
     for (int i = 0; i < MAX_PROCS; i++) {
-        if (proc_table[i]->state = PROC_FREE) {
-            return proc_table[i];
+        if (proc_table[i] == NULL) {
+            
+            // Found one! Allocate a new PCB for it.
+            PCB *pcb = allocNewPCB();
+            
+            // Put it in the table
+            proc_table[i] = pcb; 
+            
+            // Set its initial state and return it
+            pcb->state = PROC_RUNNING; // Or whatever state you use for "new"
+            pcb->pid = helper_new_pid(pcb->ptbr);
+            
+            return pcb;
         }
     }
+    
+    // No NULL slots found, table is full
     return NULL;
 }
 
@@ -141,9 +156,10 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
     int ustack_vpn = (VMEM_1_LIMIT - PAGESIZE - VMEM_1_BASE) >> PAGESHIFT;
     int ustack_pfn = allocFrame(FRAME_USER, 0);
     MapPage(idle_proc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
+    memset(&idle_proc->user_context, 0, sizeof(UserContext));
 
+    idle_proc->user_context.sp = (void *)(VMEM_1_LIMIT - 4);
     idle_proc->kstack = InitializeKernelStackIdle();
-    memcpy(&idle_proc->user_context, uctxt, sizeof(UserContext));
     (&(idle_proc->user_context))->pc = (void *)DoIdle;
 
     idle_proc->pid = 0;
@@ -156,7 +172,7 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
 
 void DoIdle(void) {
     while (1) {
-        TracePrintf(1, "Running Idle Process...\n");
+        TracePrintf(0, "Running Idle Process...\n");
         Pause();
     }
 }

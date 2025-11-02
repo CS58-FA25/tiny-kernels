@@ -5,15 +5,12 @@
 #include "hardware.h"
 #include "proc.h"
 
-#define NUM_PAGES_REGION1 (VMEM_1_SIZE / PAGESIZE)
-#define NUM_PAGES_REGION0      (VMEM_0_SIZE / PAGESIZE)
+// #define NUM_PAGES_REGION1 (VMEM_1_SIZE / PAGESIZE)
+#define NUM_PAGES_REGION1     (MAX_PT_LEN)
+#define NUM_PAGES_REGION0      (MAX_PT_LEN)
 #define KERNEL_STACK_SIZE (KERNEL_STACK_LIMIT - KERNEL_STACK_BASE)
 #define KSTACK_PAGES (KERNEL_STACK_MAXSIZE / PAGESIZE)
 #define KSTACK_START_PAGE (KERNEL_STACK_BASE >> PAGESHIFT)
-
-extern PCB pcb_table[MAX_PROCS];
-
-
 
 extern int kernel_brk_page;
 extern int text_section_base_page;

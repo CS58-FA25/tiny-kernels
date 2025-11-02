@@ -8,8 +8,11 @@
 #include "init.h"
 
 int is_vm_enabled;
+
+// Kernel's region 0 sections
 int kernel_brk_page;
 int text_section_base_page;
+int data_section_base_page;
 
 /* ================== Terminals ================== */
 #define NUM_TERMINALS 4
@@ -48,13 +51,18 @@ void KernelStart(char *cmd_args[], unsigned int pmem_size, UserContext *uctxt)
 
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
+    WriteRegister(REG_PTBR0, (unsigned int)pt_region0);
+    WriteRegister(REG_PTLR0, MAX_PT_LEN);
+    WriteRegister(REG_VM_ENABLE, 1);
 
     idle_proc = CreateIdlePCB(uctxt);
     current_process = idle_proc;
-    EnableVM();
+    //EnableVM();
+    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr);
+    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
     memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
-    return; // returns to user mode.
+    // returns to user mode.
 
 }
 
