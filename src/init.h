@@ -55,10 +55,10 @@ void InitializeFreeFrameList(int pmem_size);
 /**
  * ======================== Description =======================
  * @brief Initializes the global process table.
- * 
- * Allocates memory for all process control blocks (PCBs),
- * resets their fields, and assigns unique PIDs to each entry.
- * This prepares the system for process creation and management.
+ * * Allocates memory for the 'proc_table' array, which holds
+ * pointers to all Process Control Blocks (PCBs). All entries
+ * in the array are initialized to NULL, signifying that no
+ * processes exist yet.
  * ======================== Parameters ========================
  * @param None
  * ======================== Returns ==========================

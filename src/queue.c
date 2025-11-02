@@ -61,7 +61,7 @@ PCB *queueDequeue(queue_t *queue) {
     }
     
     queue->head = p->next;
-    TracePrtinf(1, "queueDequeue: queueDequeued process (%d pid)\n", p->pid);
+    TracePrintf(1, "queueDequeue: queueDequeued process (%d pid)\n", p->pid);
     return p;
 }
 

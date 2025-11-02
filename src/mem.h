@@ -20,11 +20,11 @@ typedef struct frame_desc {
 } frame_desc_t;
 
 extern frame_desc_t *frame_table;   /* allocated during InitMemory */
-extern unsigned int nframes;        /* number of frames available */
+extern int nframes;        /* number of frames available */
 extern int free_nframes;
 
-extern pte_t *pt_region0;
-extern pte_t *pt_region1;
+// Kernel region 0 page table
+extern pte_t pt_region0[MAX_PT_LEN];
 
 /**
  * ======================== Description =======================

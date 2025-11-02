@@ -58,7 +58,7 @@ typedef struct pcb {
     int last_run_tick;          /* last tick when this process ran (scheduler info) */
 
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
-};
+} PCB;
 
 extern PCB *idle_proc; // Pointer to the idle process PCB
 extern PCB *current_process; // Pointer to the current running process PCB
