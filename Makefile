@@ -16,7 +16,7 @@ K_SRCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.c) $(wildcard 
 K_INCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.h) $(wildcard $(K_SRC_DIR)/**/*.h))
 
 # Where's your user source?
-U_SRC_DIR = ./test
+U_SRC_DIR =
 
 # What are the user c and include files?
 U_SRCS = 
@@ -52,7 +52,7 @@ YALNIX_OUTPUT = yalnix
 #Use the gcc compiler for compiling and linking
 CC = gcc
 
-DDIR58 = $(YALNIX_FRAMEWORK)
+DDIR58 = /thayerfs/courses/25fall/cosc058/workspace/yalnix_framework
 LIBDIR = $(DDIR58)/lib
 INCDIR = $(DDIR58)/include
 ETCDIR = $(DDIR58)/etc

@@ -37,9 +37,7 @@ static TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
 void InitializeVM() {
 
     TracePrintf(0, "Building initial page tables");
-
-    pt_region0 = malloc(sizeof(pte_t) * VMEM_0_SIZE);
-    memset(pt_region0, 0, sizeof(pte_t) * VMEM_0_SIZE); // Makes the whole table clean and invalid
+    memset(pt_region0, 0, sizeof(pte_t) * NUM_PAGES_REGION0); // Makes the whole table clean and invalid
 
     int stack_limit_pfn = UP_TO_PAGE(KERNEL_STACK_LIMIT) >> PAGESHIFT;
     int kernel_stack_top = stack_limit_pfn;
@@ -74,9 +72,9 @@ void InitializeVM() {
 
 void EnableVM() {
     WriteRegister(REG_PTBR0, (unsigned int) pt_region0);
-    WriteRegister(REG_PTLR0, NUM_PAGES_REGION0);
+    WriteRegister(REG_PTLR0, MAX_PT_LEN);
     WriteRegister(REG_PTBR1, (unsigned int) current_process->ptbr);
-    WriteRegister(REG_PTBR1, current_process->ptlr);
+    WriteRegister(REG_PTLR1, current_process->ptlr);
     WriteRegister(REG_VM_ENABLE, 1);
 }
 
@@ -105,13 +103,11 @@ void InitializeFreeFrameList(int pmem_size) {
 }
 
 void InitializeProcTable(void) {
-    proc_table = malloc(sizeof(PCB) * MAX_PROCS);
-    memset(proc_table, 0, sizeof(PCB) * MAX_PROCS);
-    for (int i = 0; i < MAX_PROCS; i++) {
-        PCB *pcb = allocNewPCB();
-        int pid = helper_new_pid(pcb->ptbr);
-        proc_table[i]->pid = pid;
-    }   
+    // Just allocate the array of pointers
+    proc_table = malloc(sizeof(PCB*) * MAX_PROCS);
+    
+    // And set them all to NULL
+    memset(proc_table, 0, sizeof(PCB*) * MAX_PROCS);
 }
 
 void InitializeInterruptVectorTable(void) {

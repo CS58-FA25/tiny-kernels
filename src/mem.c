@@ -3,6 +3,13 @@
 #include "mem.h"
 #include "kernel.h"
 
+// Defining variables for the free frames list
+int nframes;
+int free_nframes;
+frame_desc_t *frame_table;
+
+// Defining the global region 0 page table array
+pte_t pt_region0[MAX_PT_LEN];
 
 int allocFrame(frame_usage_t usage, int owner_pid) {
     for (int i = 0; i < (int)nframes; i++) {

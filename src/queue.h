@@ -1,7 +1,7 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#include "proc.h"
+typedef struct pcb PCB;
 
 typedef struct queue {
     PCB* head;

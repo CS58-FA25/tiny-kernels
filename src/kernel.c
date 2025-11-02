@@ -5,8 +5,14 @@
 #include "kernel.h"
 #include "proc.h"
 #include "mem.h"
+#include "init.h"
 
+int is_vm_enabled;
 
+// Kernel's region 0 sections
+int kernel_brk_page;
+int text_section_base_page;
+int data_section_base_page;
 
 /* ================== Terminals ================== */
 #define NUM_TERMINALS 4
@@ -37,39 +43,40 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     kernel_brk_page = _orig_kernel_brk_page;
 
     TracePrintf(1, "Initializing the free frame array...\n");
-    initializeFreeFrameList(pmem_size);
+    InitializeFreeFrameList(pmem_size);
 
     TracePrintf(1, "Initializing virtual memory (creating region0 of page table and mapping to physical frames)...\n");
-    initializeVM();
-    EnableVM();
-    is_vm_enabled = 1;
-
+    InitializeVM();
 
     TracePrintf(1, "Initializing the interrupt vector table....\n");
-    initializeInterruptVectorTable();
+    InitializeInterruptVectorTable();
 
     TracePrintf(1, "Initializing the table of free pids to be used by processes....\n");
     InitializeProcTable();
 
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
+    WriteRegister(REG_PTBR0, (unsigned int)pt_region0);
+    WriteRegister(REG_PTLR0, MAX_PT_LEN);
+    WriteRegister(REG_VM_ENABLE, 1);
 
-    idleProc = CreateIdlePCB(uctxt);
-    current_process = idleProc;
+ 
+    idle_proc = CreateIdlePCB(uctxt);
+    current_process = idle_proc;
+    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr);
+    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
+    memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
 
     char *name = (cmd_args != NULL && cmd_args[0] != NULL) ? cmd_args[0] : "init";
 
-    initProc = getFreePCB();
-    if (initProc == NULL) {
+    init_proc = getFreePCB();
+    if (init_proc == NULL) {
         TracePrintf(0, "Failed to create the init process pdb.\n");
     }
-    initProc->kstack = InitializeKernelStackProcess();
-    memcpy(&(initProc->user_context), uctxt, sizeof(UserContext));
-
-
-
-    return; // returns to user mode.
+    init_proc->kstack = InitializeKernelStackProcess();
+    memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext));
+    // returns to user mode.
 
 }
 
@@ -90,7 +97,7 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     next->state = PROC_RUNNING;
     
     // Switch pointers to region 1 page table in CPU registers.
-    WriteRegister(REG_PTBR1, next->ptbr);
+    WriteRegister(REG_PTBR1, (unsigned int) next->ptbr);
     WriteRegister(REG_PTLR1, next->ptlr);
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
 
@@ -210,7 +217,7 @@ int SetKernelBrk(void *addr_ptr)
         }
 
         /* Map physical pfn into region0 VPN = cur_vpn */
-        MapRegion0VPN(cur_vpn, pfn);
+        MapRegion0(cur_vpn, pfn);
         cur_vpn++;
     }
 
