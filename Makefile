@@ -52,7 +52,7 @@ YALNIX_OUTPUT = yalnix
 #Use the gcc compiler for compiling and linking
 CC = gcc
 
-DDIR58 = $(YALNIX_FRAMEWORK)
+DDIR58 = /thayerfs/courses/25fall/cosc058/workspace/yalnix_framework
 LIBDIR = $(DDIR58)/lib
 INCDIR = $(DDIR58)/include
 ETCDIR = $(DDIR58)/etc
