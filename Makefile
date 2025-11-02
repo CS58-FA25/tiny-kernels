@@ -16,7 +16,7 @@ K_SRCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.c) $(wildcard 
 K_INCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.h) $(wildcard $(K_SRC_DIR)/**/*.h))
 
 # Where's your user source?
-U_SRC_DIR = ./test
+U_SRC_DIR =
 
 # What are the user c and include files?
 U_SRCS = 

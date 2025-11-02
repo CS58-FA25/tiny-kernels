@@ -5,8 +5,11 @@
 #include "kernel.h"
 #include "proc.h"
 #include "mem.h"
+#include "init.h"
 
-
+int is_vm_enabled;
+int kernel_brk_page;
+int text_section_base_page;
 
 /* ================== Terminals ================== */
 #define NUM_TERMINALS 4
@@ -24,7 +27,7 @@ typedef struct terminal {
     PCB *waiting_write_proc;     // process blocked on writing
 } terminal_t;
 
-void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
+void KernelStart(char *cmd_args[], unsigned int pmem_size, UserContext *uctxt)
 {
     TracePrintf(1, "KernelStart: Entering KernelStart\n");
     TracePrintf(1, "Physical memory has size %d\n", pmem_size);
@@ -32,13 +35,13 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     kernel_brk_page = _orig_kernel_brk_page;
 
     TracePrintf(1, "Initializing the free frame array...\n");
-    initializeFreeFrameList(pmem_size);
+    InitializeFreeFrameList(pmem_size);
 
     TracePrintf(1, "Initializing virtual memory (creating region0 of page table and mapping to physical frames)...\n");
-    initializeVM();
+    InitializeVM();
 
     TracePrintf(1, "Initializing the interrupt vector table....\n");
-    initializeInterruptVectorTable();
+    InitializeInterruptVectorTable();
 
     TracePrintf(1, "Initializing the table of free pids to be used by processes....\n");
     InitializeProcTable();
@@ -130,7 +133,6 @@ pte_t *InitializeKernelStackProcess(void) {
             TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
             Halt();
         }
-        int pfn = KSTACK_START_PAGE + i;
         kernel_stack[i].valid = 1;
         kernel_stack[i].pfn = pfn;
         kernel_stack[i].prot = PROT_WRITE | PROT_READ;
@@ -169,7 +171,7 @@ int SetKernelBrk(void *addr_ptr)
         }
 
         /* Map physical pfn into region0 VPN = cur_vpn */
-        MapRegion0VPN(cur_vpn, pfn);
+        MapRegion0(cur_vpn, pfn);
         cur_vpn++;
     }
 

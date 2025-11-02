@@ -4,6 +4,12 @@
 #include "kernel.h"
 
 
+frame_desc_t *frame_table = NULL;
+int nframes;
+int free_nframes;
+
+pte_t *pt_region0 = NULL;
+
 int allocFrame(frame_usage_t usage, int owner_pid) {
     for (int i = 0; i < (int)nframes; i++) {
         if (frame_table[i].usage == FRAME_FREE) {

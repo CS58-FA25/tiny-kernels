@@ -12,9 +12,9 @@
 #define KSTACK_START_PAGE (KERNEL_STACK_BASE >> PAGESHIFT)
 
 extern PCB pcb_table[MAX_PROCS];
-pte_t *ptbr0;
 
-int is_vm_enabled = 0;
+
+
 extern int kernel_brk_page;
 extern int text_section_base_page;
 extern int data_section_base_page;

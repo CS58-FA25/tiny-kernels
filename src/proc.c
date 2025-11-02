@@ -5,9 +5,14 @@
 #include "queue.h"
 #include "mem.h"
 
-ready_queue = NULL;
-blocked_queue = NULL;
-zombie_queue = NULL;
+
+PCB *idle_proc = NULL; // Pointer to the idle process PCB
+PCB *current_process = NULL; // Pointer to the current running process PCB
+queue_t *ready_queue = NULL; // A FIFO queue of processes ready to be executed by the cpu
+queue_t *blocked_queue = NULL; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
+queue_t *zombie_queue = NULL; // A queue of processes that have terminated but whose parent has not yet called Wait()
+
+PCB **proc_table;
 
 PCB *allocNewPCB() {
     PCB *process = (PCB *)malloc(sizeof(PCB));
@@ -95,7 +100,7 @@ void deletePCB(PCB *process) {
 
 PCB *getFreePCB(void) {
     if (proc_table == NULL) {
-        Traceprintf(0, "getFreePCB: The process table is not initialized.\n");
+        TracePrintf(0, "getFreePCB: The process table is not initialized.\n");
         return NULL;
     }
     for (int i = 0; i < MAX_PROCS; i++) {
