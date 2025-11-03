@@ -3,3 +3,7 @@
 
 # Source Objects
 src/**/*.o 
+.
+# editors
+*.swp
+.vscode/
