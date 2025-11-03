@@ -3,13 +3,15 @@
 
 # Source Objects
 src/**/*.o 
-.
+user/**/*.o
+
 # editors
 *.swp
 .vscode/
 
 # .yalnix (a copy directory for the yalnix framework)
 yalnix
+user/init
 
 TTYLOG*
 TRACE
