@@ -1,3 +1,5 @@
+#include "../proc.h"
+
 int Fork (void) {
    // Create new process: pid, control block
    // Copy current `UserContext` from current process memory to new process's memory
@@ -43,6 +45,7 @@ int Wait (int * status_ptr) {
 
 int GetPid (void) {
    // Get current process PCB and return the PID
+   return current_process->pid;
 }
 
 int Delay (int clock_ticks) {

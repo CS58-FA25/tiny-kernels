@@ -13,14 +13,15 @@ K_SRC_DIR = ./src
 
 # What are the kernel c and include files?
 K_SRCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.c) $(wildcard $(K_SRC_DIR)/**/*.c))
+# TODO: Includes should be inside of include directories
 K_INCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.h) $(wildcard $(K_SRC_DIR)/**/*.h))
 
 # Where's your user source?
-U_SRC_DIR =
+U_SRC_DIR = ./user
 
 # What are the user c and include files?
-U_SRCS = 
-U_INCS = 
+U_SRCS = $(patsubst $(U_SRC_DIR)/%, %,  $(wildcard $(U_SRC_DIR)/*.c) $(wildcard $(U_SRC_DIR)/**/*.c))
+U_INCS = $(patsubst $(U_SRC_DIR)/%, %,  $(wildcard $(U_SRC_DIR)/*.h) $(wildcard $(U_SRC_DIR)/**/*.h))
 
 
 #==========================================================
@@ -57,13 +58,15 @@ LIBDIR = $(DDIR58)/lib
 INCDIR = $(DDIR58)/include
 ETCDIR = $(DDIR58)/etc
 
+DEBUG ?= -DDEBUG
+
 # any extra loading flags...
 LD_EXTRA = 
 
 KERNEL_LIBS = $(LIBDIR)/libkernel.a $(LIBDIR)/libhardware.so
 
 # the "kernel.x" argument tells the loader to use the memory layout in the kernel.x file..
-KERNEL_LDFLAGS = $(LD_EXTRA) -L$(LIBDIR) -lkernel -lelf  -Wl,-T,$(ETCDIR)/kernel.x  -Wl,-R$(LIBDIR)  -lhardware
+KERNEL_LDFLAGS = $(LD_EXTRA) -L$(LIBDIR) -lkernel -lelf  -Wl,-T,$(ETCDIR)/kernel.x  -Wl,-R$(LIBDIR)  -lhardware 
 LINK_KERNEL = $(LINK.c)
 
 #  "user.x" respectively.
@@ -83,7 +86,7 @@ LINK_USER = $(LINK.c) $(USER_CFLAGS) $(USER_LINK_FLAGS)
 
 USER_LIBS = $(LIBDIR)/libyuser.a
 ASFLAGS = -D__ASM__
-CPPFLAGS=  -D_FILE_OFFSET_BITS=64 -m32 -fno-builtin -I. -I$(INCDIR) -g -DLINUX -fno-stack-protector
+CPPFLAGS=  -D_FILE_OFFSET_BITS=64 -m32 -fno-builtin -I. -I$(INCDIR) -g -DLINUX -fno-stack-protector $(DEBUG)
 
 
 ##########################

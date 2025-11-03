@@ -1,4 +1,4 @@
-FROM amd64/ubuntu:latest
+FROM ubuntu:22.04
 
 RUN dpkg --add-architecture i386
 RUN apt update
@@ -15,6 +15,3 @@ RUN apt install --yes \
 	vim
 
 WORKDIR /app
-ENV YALNIX_FRAMEWORK=/app/.yalnix
-
-ENTRYPOINT ["/bin/bash"]

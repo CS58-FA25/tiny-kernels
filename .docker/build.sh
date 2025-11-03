@@ -1,1 +1,1 @@
-YALNIX_FRAMEWORK=/app DDIR58=.yalnix make yalnix
+YALNIX_FRAMEWORK=/app DDIR58=.yalnix make
