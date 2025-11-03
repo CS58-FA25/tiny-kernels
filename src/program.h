@@ -30,7 +30,7 @@ ProgramListing* GetProgramListing();
 int RunProgram(int, UserContext*);
 #else
 
-static int _RunProgram(Program*, UserContext*);
+static inline int _RunProgram(Program*, UserContext*);
 
 #endif
 
