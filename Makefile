@@ -47,8 +47,6 @@ USER_INCS = $(U_INCS:%=$(U_SRC_DIR)/%)
 #write to output program yalnix
 YALNIX_OUTPUT = yalnix
 
-
-
 #Use the gcc compiler for compiling and linking
 CC = gcc
 

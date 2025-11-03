@@ -9,3 +9,4 @@ src/**/*.o
 .vscode/
 
 # .yalnix (a copy directory for the yalnix framework)
+yalnix
