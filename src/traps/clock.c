@@ -1,4 +1,5 @@
-#include "trap.h"
+ca#include "trap.h"
+#include "clock.h"
 
 #include <hardware.h> // UserContext
 
@@ -15,6 +16,5 @@
  */
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
-   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered\n");
+   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%x\n", tick_count);
 }
-

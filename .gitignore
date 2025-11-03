@@ -10,3 +10,8 @@ src/**/*.o
 
 # .yalnix (a copy directory for the yalnix framework)
 yalnix
+
+TTYLOG*
+TRACE
+core
+*.core

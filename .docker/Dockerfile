@@ -15,3 +15,6 @@ RUN apt install --yes \
 	vim
 
 WORKDIR /app
+ENV YALNIX_FRAMEWORK=/app/.yalnix
+
+ENTRYPOINT ["/bin/bash"]

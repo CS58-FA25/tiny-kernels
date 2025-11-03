@@ -7,5 +7,4 @@ docker run \
 	--volume $(pwd):/app \
 	-it \
 	--platform=linux/amd64 \
-	yalnix \
-	/bin/bash
+	yalnix
