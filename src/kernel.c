@@ -76,11 +76,13 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 	// _Cmd_Args = cmd_args at point of start
 	// Initialize a new array for hot-swapped arguments
         cmd_args = malloc(sizeof(char*) * 1);
-	*cmd_args = "user/init"; // TODO: in CWD..
-	TracePrintf(0, "NO ARGUMENTS PROVIDED!!! Set local `cmd_args` to \"init\".\n");
-	TracePrintf(0, "did not touch global `_Cmd_Args`, do NOT expect a reflection in behavior.\n");
+        *cmd_args = "user/init"; // TODO: in CWD..
+        TracePrintf(0, "NO ARGUMENTS PROVIDED!!! Set local `cmd_args` to \"init\".\n");
+        TracePrintf(0, "did not touch global `_Cmd_Args`, do NOT expect a reflection in behavior.\n");
     }
 
+
+    
     int pidx = LoadProgramFromArguments(cmd_args);
 
     if (pidx < 0) {
