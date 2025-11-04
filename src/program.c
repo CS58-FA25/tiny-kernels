@@ -86,6 +86,15 @@ int RunProgram(int idx, UserContext* ctx) {
        MapPage(pcb->ptbr, data_pg1 + pgno, pfn, PROT_READ | PROT_WRITE);
    }
 
+   for (int pgno = 0; pgno < stack_npg; pgno++) {
+       int pfn = allocFrame(FRAME_USER, pcb->pid);
+       MapPage(pcb->ptbr, (pcb->ptlr - stack_npg) + pgno, pfn, PROT_READ | PROT_WRITE);
+   }
+
+   WriteRegister(REG_PTBR1, pcb->ptbr);
+   WriteRegister(REG_PTLR1, pcb->ptlr);
+   WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
+
    int fd = open(program->file, O_RDONLY);
    if (fd < 0) {
        return -1;
@@ -131,6 +140,7 @@ int RunProgram(int idx, UserContext* ctx) {
        int pfn = pcb->ptbr[pgno].pfn;
        MapPage(pcb->ptbr, pgno, pfn, PROT_READ | PROT_EXEC);
    }
+   WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
 
    pcb->user_context.pc = program->li.entry;
    program->_pcb = pcb;
