@@ -41,14 +41,14 @@ int Wait (int * status_ptr) {
    // IF status_ptr is not null, this will be filled with child exit status
 }
 
-int GetPid (void) {
-   // Get current process PCB and return the PID
-}
+// int GetPid (void) {
+//    // Get current process PCB and return the PID
+// }
 
-int Delay (int clock_ticks) {
-   // get start tick
-   // halt execution until current tick = start tick + clock_ticks
-   // if clock_ticks is 0, return immedately
-   // if clock ticks is less than 0, return error -> "time travel is not carried out" :P
-   // returns 0
-}
+// int Delay (int clock_ticks) {
+//    // get start tick
+//    // halt execution until current tick = start tick + clock_ticks
+//    // if clock_ticks is 0, return immedately
+//    // if clock ticks is less than 0, return error -> "time travel is not carried out" :P
+//    // returns 0
+// }

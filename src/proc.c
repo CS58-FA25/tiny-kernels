@@ -63,6 +63,7 @@ PCB *allocNewPCB() {
     // Bookkeeping
     process->waiting_for_child_pid = INVALID_PID;
     process->last_run_tick = 0;
+    process->delay_ticks = 0;
 
     TracePrintf(1, "allocNewPCB: New PCB created at %p\n", process);
     return process;

@@ -194,7 +194,7 @@ int SetKernelBrk(void *addr_ptr)
     }
 
     /* convert address to target VPN */
-    unsigned int target_vaddr = DOWN_TO_PAGE((unsigned int) addr_ptr);
+    unsigned int target_vaddr = UP_TO_PAGE((unsigned int) addr_ptr);
     unsigned int target_vpn  = target_vaddr >> PAGESHIFT;
 
     /* bounds: cannot grow into kernel stack (stack base is virtual address) */
