@@ -48,51 +48,97 @@ int RunProgram(int idx, UserContext* ctx) {
         return -1;
    }
 
-   // If there is anything else in the PCB, let's clear it now
    for (int idx = 0; idx < pcb->ptlr; idx++) {
        if (pcb->ptbr[idx].valid) {
-	   freeFrame(pcb->ptbr[idx].pfn);
+           freeFrame(pcb->ptbr[idx].pfn);
            pcb->ptbr[idx].valid = 0;
        }
-       pcb->ptbr[idx].prot = 0;
-       pcb->ptbr[idx].pfn = 0;
+       MapPage(pcb->ptbr, idx, 0, 0);
+   }
+   WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
+
+   unsigned int size = 0;
+   for (int i = 0; i < program->argc; i++) {
+      size = size + strlen(program->argv[i]) + 1;
    }
 
-   WriteRegister(REG_TLB_FLUSH,TLB_FLUSH_0);
+   char* cp = ((char *)VMEM_1_LIMIT) - size;
+   char** cpp = (char **) (((int) cp - ((program->argc + 3 + POST_ARGV_NULL_SPACE) * sizeof (void *))) & ~7);
+   char* sp = (caddr_t)cpp - INITIAL_STACK_FRAME_SIZE;
 
-  /*
-   * Figure out in what region 1 page the different program sections
-   * start and end
-   */
    int text_pg1 = (program->li.t_vaddr - VMEM_1_BASE) >> PAGESHIFT;
    int data_pg1 = (program->li.id_vaddr - VMEM_1_BASE) >> PAGESHIFT;
    int data_npg = program->li.id_npg + program->li.ud_npg;
-   int stack_npg = (VMEM_1_LIMIT - DOWN_TO_PAGE(cp2)) >> PAGESHIFT;
-   
-   char* cp = ((char *)VMEM_1_LIMIT) - size;
-   char** cpp = (char **) (((int)cp - ((argcount + 3 + POST_ARGV_NULL_SPACE) * sizeof (void *))) & ~7);
+   int stack_npg = (VMEM_1_LIMIT - DOWN_TO_PAGE(sp)) >> PAGESHIFT;
 
-   pcb->stack = ;
+   if (stack_npg + data_pg1 + data_npg + text_pg1 >= MAX_PT_LEN) {
+       // too big
+       return -1;
+   }
 
-   // (addr >> PAGESHIFT) - stack_npg;
-   // Set PC
+   for (int pgno = 0; pgno < program->li.t_npg; pgno++) {
+       int pfn = allocFrame(FRAME_USER, pcb->pid);
+       MapPage(pcb->ptbr, text_pg1 + pgno, pfn, PROT_READ | PROT_WRITE);
+   }
+
+   for (int pgno = 0; pgno < data_npg; pgno++) {
+       int pfn = allocFrame(FRAME_USER, pcb->pid);
+       MapPage(pcb->ptbr, data_pg1 + pgno, pfn, PROT_READ | PROT_WRITE);
+   }
+
+   int fd = open(program->file, O_RDONLY);
+   if (fd < 0) {
+       return -1;
+   }
+
+   size_t textsz = program->li.t_npg << PAGESHIFT;
+   lseek(fd, program->li.t_faddr, SEEK_SET);
+   if (read(fd, (void*)program->li.t_vaddr, textsz) != textsz) { 
+       close(fd);
+   }
+
+   size_t datasz = program->li.id_npg << PAGESHIFT;
+   lseek(fd, program->li.id_faddr, SEEK_SET);
+   if (read(fd, (void*)program->li.id_vaddr, datasz) != datasz) { 
+       close(fd);
+   }
+
+   TracePrintf(0, "Copied over program data\n");
+
+   bzero((void*) program->li.id_end, program->li.ud_end - program->li.id_end);
+
+   pcb->user_context.sp = sp;
+   sp = malloc(size);
+
+   cpp = cpp + 1;
+   *(int*)cpp = program->argc;
+   for (int i = 0; i < program->argc; i++) {
+      char* arg = program->argv[i];
+      int len = strlen(arg);
+      cpp = cpp + 1;
+      *cpp = cp;
+      memcpy(sp, arg, len);
+      memcpy(cp, sp, len);
+      cp = cp + len + 1;
+      sp = sp + len + 1;
+   }
+   cpp = cpp + 1;
+   *cpp = 0;
+   cpp = cpp + 1;
+   *cpp = 0;
+
+   for (int pgno = 0; pgno < program->li.t_npg; pgno++) {
+       int pfn = pcb->ptbr[pgno].pfn;
+       MapPage(pcb->ptbr, pgno, pfn, PROT_READ | PROT_EXEC);
+   }
+
    pcb->user_context.pc = program->li.entry;
-   // Set PCB
    program->_pcb = pcb;
-
-   // Zero out uninitialized data
-   bzero(program->li.id_end, program->li.ud_end - program->li.id_end);
-   // Migrate the args over
-
-   // TODO: Since there is no scheduler, we are just going to call the switch now.
-   // This is not a good idea and we should properly track the kernel context in the future..
-   // // KCCopy(kctxt, program->_pcb, 0);
-   // TODO: There should also be process tracking here (when there is a scheduler, of course)
    program->_pcb->kstack = InitializeKernelStackProcess();
-   KernelContextSwitch(KCSwitch, current_process, program->_pcb);
    memcpy(&(program->_pcb->user_context), ctx, sizeof(UserContext));
    return 0;
 }
+
 
 #else
 static inline int _RunProgram(Program* program, UserContext* ctx) {
@@ -128,14 +174,6 @@ int LoadProgram(char* program, int argc, char** argv) {
     }
 #endif
 
-//  typedef struct Program {
-//      PCB* _pcb;
-//      char* file;
-//      int argc;
-//      char** argv;
-//      unsigned long base; // Address
-//      struct load_info li;
-//  };
   
     if ((fd = open(program, O_RDONLY)) < 0) {
 	TracePrintf(0, "[PROGRAM: LOAD]: Could not open file \"%s\"\n", program);
