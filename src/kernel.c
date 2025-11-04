@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "mem.h"
 #include "init.h"
+#include "program.h"
 
 int is_vm_enabled;
 
@@ -68,22 +69,49 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
     memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
 
-    char *name = (cmd_args != NULL && cmd_args[0] != NULL) ? cmd_args[0] : "init";
-
-    init_proc = getFreePCB();
-    if (init_proc == NULL) {
-        TracePrintf(0, "Failed to create the init process pdb.\n");
+    // Check if there are no arguments provided
+    // If there are no arguments, lets create a *new* argument array
+    if (!cmd_args || !*cmd_args) {
+	// _Cmd_Args = cmd_args at point of start
+	// Initialize a new array for hot-swapped arguments
+        cmd_args = malloc(sizeof(char*) * 1);
+	*cmd_args = "user/init"; // TODO: in CWD..
+	TracePrintf(0, "NO ARGUMENTS PROVIDED!!! Set local `cmd_args` to \"init\".\n");
+	TracePrintf(0, "did not touch global `_Cmd_Args`, do NOT expect a reflection in behavior.\n");
     }
-    init_proc->kstack = InitializeKernelStackProcess();
-    memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext));
-    // returns to user mode.
 
+    int pidx = LoadProgramFromArguments(cmd_args);
+
+    if (pidx < 0) {
+        TracePrintf(0, "Failed to load program.\n");
+	// Error!!!! Let's jump out gracefully
+    } else {
+	// DEBUG CODE WHILE THERE IS PROGRAM TRACKING! This doesn't need to exist later though
+#ifdef DEBUG
+	Program* prog = GetProgramListing()->progs[pidx];
+        TracePrintf(0, "Loaded program: %d (%p) (%s) \n", pidx, prog, prog->file);
+	// This run the program with the provided context
+	RunProgram(pidx, uctxt);
+#endif
+    }
+
+    //init_proc = getFreePCB();
+    // if (init_proc == NULL) {
+    //    TracePrintf(0, "Failed to create the init process pdb.\n");
+    // }
+    // init_proc->kstack = InitializeKernelStackProcess();
+    // memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext));
+    // returns to user mode.
 }
 
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
     PCB *curr = (PCB *)curr_pcb_p;
     PCB *next = (PCB *)next_pcb_p;
-    memcpy(&(curr->kernel_context), kc_in, sizeof(KernelContext));
+
+    if (curr) {
+	// If there is no current process, the context doesn't get saved :(
+        memcpy(&(curr->kernel_context), kc_in, sizeof(KernelContext));
+    }
 
     // Switch kernel stacks in region 0 from current process to next process
     pte_t *next_kstack = next->kstack;

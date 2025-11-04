@@ -1,3 +1,5 @@
+#include "../proc.h"
+
 int Fork (void) {
    // Create new process: pid, control block
    // Copy current `UserContext` from current process memory to new process's memory

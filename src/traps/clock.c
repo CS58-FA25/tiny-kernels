@@ -1,7 +1,12 @@
 #include "trap.h"
+<<<<<<< HEAD
 #include "../kernel.h"
 #include "../proc.h"
 #include "../queue.h"
+=======
+#include "clock.h"
+
+>>>>>>> bfu4/cp3
 #include <hardware.h> // UserContext
 
 /**
@@ -17,6 +22,7 @@
  */
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
+<<<<<<< HEAD
    TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered\n");
 
    PCB *curr = current_process;
@@ -57,5 +63,8 @@ void ClockTrapHandler(UserContext* ctx) {
 
 
    memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+=======
+   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%x\n", tick_count);
+>>>>>>> bfu4/cp3
 }
 

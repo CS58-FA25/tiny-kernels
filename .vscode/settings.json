@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "*.ejs": "html",
-        "hardware.h": "c",
-        "__locale": "c",
-        "queue.h": "c"
-    }
-}
