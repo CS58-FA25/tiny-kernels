@@ -170,6 +170,7 @@ static inline int _RunProgram(Program* program, UserContext* ctx) {
 int LoadProgram(char* program, int argc, char** argv) {
     int fd;
     struct load_info li;
+    TracePrintf(0, "Loading program %s", program);
 
 #ifdef DEBUG
     if (!_program_listing.progs) {

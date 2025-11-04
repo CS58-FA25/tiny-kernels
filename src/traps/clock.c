@@ -5,6 +5,7 @@
 #include "../kernel.h"
 #include "../proc.h"
 #include "../queue.h"
+#include "clock.h"
 
 #include <hardware.h> // UserContext
 
@@ -45,46 +46,6 @@ void ClockTrapHandler(UserContext* ctx) {
       blocked_curr = next_blocked_proc;
    }
 
-   // For cp3, lets swap out processes at every clock tick
-   PCB *next_proc = queueDequeue(ready_queue);
-   // If we found another ready process, switch out to it
-   if (next_proc) {
-      TracePrintf(0, "Switching from PID %d to PID %d", curr->pid, next_proc->pid);
-      
-      // If current was running, put it back in ready status and put in ready queue
-      if (curr->state == PROC_RUNNING) {
-         curr->state = PROC_READY;
-         queueEnqueue(ready_queue, curr);
-      }
-      KernelContextSwitch(KCSwitch, curr, next_proc);
-   }
-
-
-   memcpy(ctx, &current_process->user_context, sizeof(UserContext));
-
-   PCB *curr = current_process;
-   memcpy(&curr->user_context, ctx, sizeof(UserContext));
-
-   PCB *blocked_curr = blocked_queue->head;
-   while (blocked_curr) {
-      PCB *next_blocked_proc = blocked_curr->next;
-      if (blocked_curr->delay_ticks > 0) {
-         blocked_curr->delay_ticks--;
-         
-         // If the number of ticks originally allocated have already passed, remove it from the blocked queue
-         // and add it to the ready queue
-         if (blocked_curr->delay_ticks == 0) {
-            TracePrintf(0, "Process PID %d delay has elapsed!\n", blocked_curr->pid);
-            queueRemove(blocked_queue, blocked_curr);
-            blocked_curr->state = PROC_READY;
-            queueEnqueue(ready_queue, blocked_curr);
-
-         }
-      }
-      blocked_curr = next_blocked_proc;
-   }
-
-   // TODO: handle stuff with the scheduler in mind
    // For cp3, lets swap out processes at every clock tick
    PCB *next_proc = queueDequeue(ready_queue);
    // If we found another ready process, switch out to it

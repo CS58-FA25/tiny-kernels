@@ -2,7 +2,7 @@
 #include "../proc.h"
 #include "../kernel.h"
 #include "../mem.h"
-
+#include "syscalls.h"
 #include <hardware.h>
 #include <ykernel.h>
 
