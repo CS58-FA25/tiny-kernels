@@ -56,11 +56,13 @@ typedef struct pcb {
     /* bookkeeping flags */
     int waiting_for_child_pid;  /* if parent is blocked waiting for child (Wait) */
     int last_run_tick;          /* last tick when this process ran (scheduler info) */
+    int delay_ticks;   /* How muany more ticks should this process be delayed for */
 
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
 } PCB;
 
 extern PCB *idle_proc; // Pointer to the idle process PCB
+extern PCB *init_proc;
 extern PCB *current_process; // Pointer to the current running process PCB
 extern queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
 extern queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
@@ -106,6 +108,8 @@ void deletePCB(PCB *process);
  * @returns Pointer to a free PCB if found, NULL otherwise.
  */
 PCB *getFreePCB(void); // Retrieves an unused PCB from proc_table for process creation
+
+void CloneRegion1(PCB *pcb_from, PCB *pcb_to);
 
 /**
  * ======================== Description =======================

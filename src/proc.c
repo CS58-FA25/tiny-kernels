@@ -7,6 +7,7 @@
 
 
 PCB *idle_proc; // Pointer to the idle process PCB
+PCB *init_proc;
 PCB *current_process; // Pointer to the current running process PCB
 queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
 queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
@@ -24,7 +25,6 @@ PCB *allocNewPCB() {
     // Zero out the struct to avoid garbage values
     memset(process, 0, sizeof(PCB));
 
-    process->pid = INVALID_PID;
     process->ppid = INVALID_PID;      // no parent yet
     process->state = PROC_FREE;
     process->exit_status = 0;
@@ -37,6 +37,8 @@ PCB *allocNewPCB() {
     }
     memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t)); // All entries are invalid
     process->ptlr = NUM_PAGES_REGION1;
+    process->pid = helper_new_pid(process->ptbr);
+
     
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_heap_end_vaddr = USER_MEM_START; // Reassign after loadProgram is called
@@ -61,6 +63,7 @@ PCB *allocNewPCB() {
     // Bookkeeping
     process->waiting_for_child_pid = INVALID_PID;
     process->last_run_tick = 0;
+    process->delay_ticks = 0;
 
     TracePrintf(1, "allocNewPCB: New PCB created at %p\n", process);
     return process;
@@ -126,6 +129,22 @@ PCB *getFreePCB(void) {
     return NULL;
 }
 
+void CloneRegion1(PCB *pcb_from, PCB *pcb_to) {
+    pte_t *pt_region1_from = pcb_from->ptbr;
+    pte_t *pt_region1_to = pcb_to->ptbr;
+    for (int i = 0; i < NUM_PAGES_REGION1; i++) {
+        if (pt_region1_from[i].valid == 1) {
+            int pfn_to = allocFrame(FRAME_USER, pcb_to->pid);
+            int pfn_from = pt_region1_from[i].pfn;
+            CloneFrame(pfn_from, pfn_to);
+
+            pt_region1_to[i].pfn = pfn_to;
+            pt_region1_to[i].prot = pt_region1_from[i].prot;
+            pt_region1_to[i].valid = 1;
+        }
+    }
+}
+
 void InitializeProcQueues(void) {
     ready_queue = queueCreate();
     if (ready_queue == NULL) {
@@ -162,8 +181,6 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
     idle_proc->kstack = InitializeKernelStackIdle();
     (&(idle_proc->user_context))->pc = (void *)DoIdle;
 
-    idle_proc->pid = 0;
-    idle_proc->ppid = INVALID_PID;
     idle_proc->state = PROC_RUNNING;
 
     TracePrintf(1, "Created Idle process with %d PID.\n", idle_proc->pid);
