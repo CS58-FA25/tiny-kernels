@@ -56,6 +56,7 @@ typedef struct pcb {
     /* bookkeeping flags */
     int waiting_for_child_pid;  /* if parent is blocked waiting for child (Wait) */
     int last_run_tick;          /* last tick when this process ran (scheduler info) */
+    int delay_ticks;   /* How muany more ticks should this process be delayed for */
 
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
 } PCB;
