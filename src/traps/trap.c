@@ -1,11 +1,9 @@
-#include "trap.h"
-#include "../kernel.h"
-#include "../proc.h"
-#include "../queue.h"
-#include "../kernel.h"
-#include "../proc.h"
-#include "../queue.h"
-#include "../syscalls/syscalls.h"
+#include "traps/trap.h"
+#include "kernel.h"
+#include "proc.h"
+#include "queue.h"
+#include "kernel.h"
+#include "syscalls/process.h"
 #include <hardware.h> 
 
 void ClockTrapHandler(UserContext* ctx) {
@@ -36,6 +34,7 @@ void ClockTrapHandler(UserContext* ctx) {
 
    // For cp3, lets swap out processes at every clock tick
    PCB *next_proc = queueDequeue(ready_queue);
+
    // If we found another ready process, switch out to it
    if (next_proc) {
       TracePrintf(0, "Switching from PID %d to PID %d\n", curr->pid, next_proc->pid);
@@ -61,7 +60,7 @@ void KernelTrapHandler(UserContext* ctx) {
             int delay = ctx->regs[0];
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
 
-            int delay_result = SysDelay(delay);
+            int delay_result = Delay(delay);
             if (delay_result == ERROR) {
                 TracePrintf(TRAP_TRACE_LEVEL, "ERROR: Failed to execute delay syscall!\n");
             }
@@ -74,7 +73,7 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             
             void *addr = (void *)ctx->regs[0];
-            int brk_result = SysBrk(addr);
+            int brk_result = Brk(addr);
             if (brk_result == ERROR) {
                 TracePrintf(TRAP_TRACE_LEVEL, "Failed to execute Brk syscall!\n");
             }

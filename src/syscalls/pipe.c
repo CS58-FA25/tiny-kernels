@@ -1,3 +1,5 @@
+#include "syscalls/pipe.h"
+
 int PipeInit (int * pipe_idp) {
    // get a pipe id from a list of pipes based on the max and current number of pipes
    // if cannot create pipe, return error

@@ -7,7 +7,6 @@
 #include "proc.h"
 #include "mem.h"
 #include "init.h"
-#include "program.h"
 
 #include <fcntl.h>
 #include <unistd.h>

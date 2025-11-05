@@ -10,11 +10,12 @@
 
 # Where's your kernel source?
 K_SRC_DIR = ./src
-
+K_INC_DIR = ./src/include
 # What are the kernel c and include files?
 K_SRCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.c) $(wildcard $(K_SRC_DIR)/**/*.c))
 # TODO: Includes should be inside of include directories
-K_INCS = $(patsubst $(K_SRC_DIR)/%, %, 	$(wildcard $(K_SRC_DIR)/*.h) $(wildcard $(K_SRC_DIR)/**/*.h))
+K_INCS = $(patsubst $(K_INC_DIR)/%, %,  $(wildcard $(K_INC_DIR)/*.h) $(wildcard $(K_INC_DIR)/**/*.h))
+
 
 # Where's your user source?
 U_SRC_DIR = ./user
@@ -36,8 +37,7 @@ KERNEL_ALL = yalnix
 # Automatically generate the list of sources, objects, and includes for the kernek
 KERNEL_SRCS = $(K_SRCS:%=$(K_SRC_DIR)/%)
 KERNEL_OBJS = $(KERNEL_SRCS:%.c=%.o) 
-KERNEL_INCS = $(K_INCS:%=$(K_SRC_DIR)/%) 
-
+KERNEL_INCS = $(K_INCS:%=$(K_INC_DIR)/%)
 
 # Automatically generate the list of apps, sources, objects, and includes for your userland coden
 USER_SRCS = $(U_SRCS:%=$(U_SRC_DIR)/%)
@@ -86,8 +86,7 @@ LINK_USER = $(LINK.c) $(USER_CFLAGS) $(USER_LINK_FLAGS)
 
 USER_LIBS = $(LIBDIR)/libyuser.a
 ASFLAGS = -D__ASM__
-CPPFLAGS=  -D_FILE_OFFSET_BITS=64 -m32 -fno-builtin -I. -I$(INCDIR) -g -DLINUX -fno-stack-protector $(DEBUG)
-
+CPPFLAGS=  -D_FILE_OFFSET_BITS=64 -m32 -fno-builtin -I. -I$(INCDIR) -I$(K_SRC_DIR)/include -g -DLINUX -fno-stack-protector $(DEBUG)
 
 ##########################
 #Targets for different makes

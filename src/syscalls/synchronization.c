@@ -1,3 +1,5 @@
+#include "syscalls/synchronization.h"
+
 // OPTIONAL START
 //
 // This section is marked as optional within the yalnix guide, though might be worth implementing

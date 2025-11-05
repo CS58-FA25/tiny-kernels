@@ -37,7 +37,6 @@ PCB *allocNewPCB() {
     }
     memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t)); // All entries are invalid
     process->ptlr = NUM_PAGES_REGION1;
-    process->pid = helper_new_pid(process->ptbr);
 
     
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
