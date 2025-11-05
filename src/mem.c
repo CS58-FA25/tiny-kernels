@@ -86,3 +86,56 @@ void UnmapRegion0(unsigned int vpn) {
     pt_region0[vpn].prot  = 0;
     pt_region0[vpn].pfn   = 0;
 }
+
+void CloneFrame(int pfn_src, int pfn_dst) {
+    // Map a scratch page to pfn_dst
+    int scratch_page = SCRATCH_ADDR >> PAGESHIFT;
+    pt_region0[scratch_page].pfn = pfn_dst;
+    pt_region0[scratch_page].prot = PROT_READ | PROT_WRITE;
+    pt_region0[scratch_page].valid = 1;
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR); // In case the CPU already has a mapping in the TLB
+
+    // Copy the contents of pfn_src to the frame mapped by the page table to pfn_dst
+    unsigned int pfn_src_addr = pfn_src << PAGESHIFT;
+    memcpy((void *)(SCRATCH_ADDR), (void *)pfn_src_addr, PAGESIZE);
+
+    // Now that the frame pfn_dst has the contents of the frame pfn_src, unmap it from the scratch address in pt_region0
+    pt_region0[scratch_page].valid = 0;
+    pt_region0[scratch_page].prot = 0;
+    pt_region0[scratch_page].pfn = 0;
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR);
+}
+
+int copyPT(PCB *src, PCB *dst) {
+    /**
+     * For each valid page table entry i in pt_src, allocate a frame for pt_dst
+     * Copy the content of the frame pt_src[i].pfn to pt_dst[i].pfn.
+     * Set protections to be the same as thos of pt_src[i]
+     * 
+    */
+
+    pte_t *pt_src = src->ptbr;
+    pte_t *pt_dst = dst->ptbr;
+    for (int i = 0; i < MAX_PT_LEN; i++) {
+        if (pt_src[i].valid == 1) {
+            // Allocate a frame to mape the destination page table entry to
+            int dst_frame = allocFrame(FRAME_USER, dst->pid);
+            if (dst_frame == -1) {
+                TracePrintf(0, "CopyPT: Failed to allocate a frame for the destination process PID %d pagetable!\n", dst->pid);
+                return ERROR;
+            }
+
+            int src_frame = pt_src[i].pfn;
+
+            // Copy the contents of the src frame to the dst frame
+            CloneFrame(src_frame, dst_frame);
+
+            // Filling in the pagetable entry
+            pt_dst[i].pfn = dst_frame;
+            pt_dst[i].valid = 1;
+            pt_dst[i].prot = pt_src[i].prot;
+        }
+   }
+   TracePrintf(0, "CopyPT: Succesfully copied pagetable from process PID %d to process PID %d!\n");
+   return SUCCESS;
+}

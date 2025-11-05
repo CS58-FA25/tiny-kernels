@@ -5,6 +5,9 @@
 #include "ykernel.h"
 #include "kernel.h"
 
+
+#define SCRATCH_ADDR (KERNEL_STACK_BASE - PAGESIZE)
+
 typedef enum {
     FRAME_FREE = 0,
     FRAME_KERNEL,
@@ -121,7 +124,8 @@ void MapRegion0(unsigned int vpn, int pfn);
  * 
 */
 void UnmapRegion0(unsigned int vpn);
-
+void CloneFrame(int pfn_src, int pfn_dst);
+int CopyPT(PCB *src, PCB *dst);
 
 
 #endif

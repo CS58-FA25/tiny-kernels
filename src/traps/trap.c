@@ -63,22 +63,35 @@ void KernelTrapHandler(UserContext* ctx) {
             int delay_result = Delay(delay);
             if (delay_result == ERROR) {
                 TracePrintf(TRAP_TRACE_LEVEL, "ERROR: Failed to execute delay syscall!\n");
+                Halt();
             }
 
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = delay_result;
             break;
         case YALNIX_BRK:
-            TracePrintf(TRAP_TRACE_LEVEL, "Executing Brk syscall for process PID %d", current_process->pid);
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing Brk syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             
             void *addr = (void *)ctx->regs[0];
             int brk_result = Brk(addr);
             if (brk_result == ERROR) {
                 TracePrintf(TRAP_TRACE_LEVEL, "Failed to execute Brk syscall!\n");
+                Halt();
             }
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = brk_result;
+            break;
+         case YALNIX_FORK:
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing Fork syscall for process PID %d\n", current_process->pid);
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+
+            int fork_result = Fork();
+            if (fork_result == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL, "Failed to execute Fork syscall!\n");
+               Halt();
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             break;
     }
 

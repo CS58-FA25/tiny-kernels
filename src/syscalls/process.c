@@ -58,13 +58,58 @@ int Brk(void *addr) {
 }
 
 int Fork (void) {
-   // Create new process: pid, control block
-   // Copy current `UserContext` from current process memory to new process's memory
-   // Note: worth creating explicit memory for new process that parent does not touch
-   // Copy kernel stack from (`KernelContext`)
-   // If anything about fails, return -1 else
-   // Set return value for child to be 0 in `UserContext`
-   // Return child pid to parent
+    PCB *child = getFreePCB();   // Create new process: pid, process control block
+    if (child == NULL) {
+        TracePrintf(0, "Fork: Failed to find a free PCB for the child process!\n");
+        return ERROR;
+    }
+    PCB *parent = current_process;
+    child->ppid = parent->pid; // Mapping the pid of the parent to the ppid in the child
+
+    // Copy current `UserContext` from parent process PCB to child process's PCB
+    memcpy(&child->user_context, &parent->user_context, sizeof(UserContext));
+    
+    // Now need to copy region1 pagetable
+    int result = CopyPT(parent, child);
+    if (result == ERROR) {
+        TracePrintf(0, "Fork: Failed to clone region 1 memory into child process!\n");
+        return ERROR;
+    }
+
+    // Copy kernel stack and kernel context from parent process into child process.
+    int rc = KernelContextSwitch(KCCopy, child, NULL);
+    if (rc == -1) {
+        TracePrintf(0, "Fork: Kernel Context Switch failed while copying kernel stack!\n");
+        return ERROR;
+    }
+    
+    // Marking the child process as ready and adding it to the ready queue
+    child->state = PROC_READY;
+    queueEnqueue(ready_queue, child);
+    queueEnqueue(parent->children_processes, child); // Putting the child process in the parent's children processes queue
+
+    // Return value register for each process is going to be different
+    (&child->user_context)->regs[0] = 0;
+    (&parent->user_context)->regs[0] = child->pid;
+    return SUCCESS;
+
+    // if (current_process->pid == child->pid) {
+    //     TracePrintf(0, "Fork: Child process PID %d returning from fork!\n", child->pid);
+    //     child->state = PROC_RUNNING; // Marking it as running
+
+    //     WriteRegister(REG_PTBR1, (unsigned int) child->ptbr);
+    //     WriteRegister(REG_PTLR1, child->ptlr);
+    //     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
+    //     return 0;
+    // } else {
+    //     TracePrintf(0, "Fork: Parent process PID %d returning from fork!\n");
+    //     queueEnqueue(parent->children_processes, child); // Putting the child process in the parent's children processes queue
+        
+    //     // Marking the child process as ready and adding it to the ready queue
+    //     child->state = PROC_READY; 
+    //     queueEnqueue(ready_queue, child);
+    //     return child->pid;
+    // }
 }
 
 
