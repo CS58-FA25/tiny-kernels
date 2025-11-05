@@ -126,7 +126,6 @@ int copyPT(PCB *src, PCB *dst) {
             }
 
             int src_frame = pt_src[i].pfn;
-
             // Copy the contents of the src frame to the dst frame
             CloneFrame(src_frame, dst_frame);
 
