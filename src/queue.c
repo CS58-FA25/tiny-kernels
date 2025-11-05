@@ -21,9 +21,9 @@ void queueRemove(queue_t *queue, PCB *process) {
         Halt();
     }
 
-    if (process->prev = NULL) queue->head = process->next;
+    if (process->prev == NULL) queue->head = process->next;
     else process->prev->next = process->next;
-    if (process->next = NULL) queue->tail = process->prev;
+    if (process->next == NULL) queue->tail = process->prev;
     else process->next->prev = process->prev;
 
 }

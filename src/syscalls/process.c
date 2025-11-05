@@ -49,18 +49,18 @@ int Wait (int * status_ptr) {
    // IF status_ptr is not null, this will be filled with child exit status
 }
 
-int GetPid (void) {
+int SysGetPid (void) {
    // Get current process PCB and return the PID
    return current_process->pid;
 }
 
-int Delay(int clock_ticks) {
+int SysDelay(int clock_ticks) {
     if (clock_ticks == 0) {
-        return 0;
+        return SUCCESS;
     }
     if (clock_ticks < -1) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Delay: Can't delay for a negative number of ticks.\n");
-        return -1;
+        return ERROR;
     }
 
     // Get the current running process to delay
@@ -80,6 +80,6 @@ int Delay(int clock_ticks) {
     TracePrintf(SYSCALLS_TRACE_LEVEL, "Delay: Process PID %d is delayed. Switching to process PID %d...\n", curr->pid, next_proc->pid);
     KernelContextSwitch(KCSwitch, curr, next_proc);
 
-    return 0;
+    return SUCCESS;
 }
 

@@ -7,10 +7,10 @@
 #include "../mem.h"
 
 
-int Brk(void *addr) {
+int SysBrk(void *addr) {
     if (addr == NULL) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
-        return -1;
+        return ERROR;
     }
     unsigned int aligned_addr = UP_TO_PAGE((unsigned int) addr);
     unsigned int aligned_user_heap_brk = UP_TO_PAGE(current_process->user_heap_end_vaddr);
@@ -30,7 +30,7 @@ int Brk(void *addr) {
         if (pfn == -1) {
             TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Failed to allocate frames to expand user heap for process PID %d!\n", current_process->pid);
             // TODO: If we already allocated frames for this, free them
-            return -1;
+            return ERROR;
         }
         // Map the frame
         pt_region1[user_heap_brk_vpn].pfn = pfn;
@@ -53,6 +53,6 @@ int Brk(void *addr) {
     }
 
     current_process->user_heap_end_vaddr = (user_heap_brk_vpn << PAGESHIFT) + VMEM_1_BASE;
-    return 0;
+    return SUCCESS;
 
 }

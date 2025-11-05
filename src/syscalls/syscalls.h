@@ -4,7 +4,7 @@
 #define SYSCALLS_TRACE_LEVEL    0
 
 // brk.c
-int Brk(void *addr);
+int SysBrk(void *addr);
 
 
 // pipe.c
@@ -31,7 +31,7 @@ int Fork (void);
 int Exec (char * file, char ** argvec);
 void Exit (int status);
 int Wait (int * status_ptr);
-int GetPid (void);
-int Delay(int clock_ticks);
+int SysGetPid (void);
+int SysDelay(int clock_ticks);
 
 #endif
