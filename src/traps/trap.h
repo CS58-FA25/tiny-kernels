@@ -10,28 +10,14 @@
 extern uint32_t tick_count;
 
 typedef void (*TrapHandler)(UserContext*); // Page 23
-
-// clock.c
 void ClockTrapHandler(UserContext* ctx);
-
-// math.c
 void MathTrapHandler(UserContext* ctx);
-
-// memory.c
 void MemoryTrapHandler(UserContext* ctx);
 void IllegalInstructionTrapHandler(UserContext* ctx);
-
-// tty.c
 void TtyTrapTxHandler(UserContext* ctx);
 void TtyTrapRxHandler(UserContext* ctx);
-
-// disk.c 
 void DiskTrapHandler(UserContext* ctx);
-
-// nop.c
 void NotImplementedTrapHandler(UserContext* ctx);
-
-// kernel.c
 void KernelTrapHandler(UserContext* ctx);
 
 #endif // TRAP_H
