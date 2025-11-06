@@ -46,7 +46,7 @@ void queueEnqueue(queue_t *queue, PCB *process) {
         queue->tail->next = process;
     }
     queue->tail = process;
-    TracePrintf(1, "queueEnqueued PCB (%d pid)", process->pid);
+    TracePrintf(1, "queueEnqueued PCB (%d pid)\n", process->pid);
 }
 
 PCB *queueDequeue(queue_t *queue) {
@@ -59,9 +59,18 @@ PCB *queueDequeue(queue_t *queue) {
         TracePrintf(0, "queueDequeue: Queue is Empty. Can't deque.\n");
         return NULL;
     }
-    
+
     queue->head = p->next;
-    TracePrintf(1, "queueDequeue: queueDequeued process (%d pid)\n", p->pid);
+    if (queue->head == NULL) {
+        queue->tail = NULL;
+    } else {
+        queue->head->prev = NULL;
+    }
+
+    p->next = NULL;
+    p->prev = NULL;
+
+    TracePrintf(1, "queueDequeue: Dequeued process (%d pid)\n", p->pid);
     return p;
 }
 
@@ -100,3 +109,26 @@ int is_empty(queue_t *queue) {
     return (queue->head == NULL);
 }
 
+
+void print_queue(queue_t *queue) {
+    if (queue == NULL) {
+        TracePrintf(0, "print_queue: Error - Queue pointer is NULL.\n");
+        return;
+    }
+
+    // Print the queue's address for easy identification
+    TracePrintf(0, "--- Printing Queue (addr %p) ---", queue);
+    
+    PCB *current = queue->head;
+    if (current == NULL) {
+        TracePrintf(0, "  [ EMPTY ]");
+    }
+
+    // Loop through and print each PID
+    while (current != NULL) {
+        TracePrintf(0, "  PID: %d (at %p)", current->pid, current);
+        current = current->next;
+    }
+    
+    TracePrintf(0, "--- End of Queue (addr %p) ---\n", queue);
+}

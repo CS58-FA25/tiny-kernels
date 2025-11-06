@@ -6,7 +6,9 @@
 #include "kernel.h"
 
 
-#define SCRATCH_ADDR (KERNEL_STACK_BASE - PAGESIZE)
+// #define SCRATCH_ADDR (KERNEL_STACK_BASE - PAGESIZE)
+#define SCRATCH_ADDR_DST (KERNEL_STACK_BASE - PAGESIZE) // e.g., 0xFA000
+#define SCRATCH_ADDR_SRC (KERNEL_STACK_BASE - (PAGESIZE*2)) // e.g., 0xF8000
 
 typedef enum {
     FRAME_FREE = 0,

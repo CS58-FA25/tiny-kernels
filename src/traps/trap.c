@@ -40,7 +40,7 @@ void ClockTrapHandler(UserContext* ctx) {
       TracePrintf(0, "Switching from PID %d to PID %d\n", curr->pid, next_proc->pid);
       
       // If current was running, put it back in ready status and put in ready queue
-      if (curr->state == PROC_RUNNING) {
+      if (curr->state == PROC_RUNNING && curr->pid != 0) {
          curr->state = PROC_READY;
          queueEnqueue(ready_queue, curr);
       }

@@ -104,13 +104,12 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL); // Flushing TLB from any stale mappings
 
     // Add the init process to the ready queue to be scheduled to run by the scheduler
-    queueEnqueue(ready_queue, init_proc);
-
+    queueEnqueue(ready_queue, init_proc); // pid 0 running and only pid 1 in there
     // Now copy kernel context into init process
     KernelContextSwitch(KCCopy, init_proc, NULL);
     memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
+    // Still pid 0 running and only pid 1 in there
     return;
-
 }
 
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
@@ -118,7 +117,7 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     PCB *next = (PCB *)next_pcb_p;
 
     if (curr) {
-	// If there is no current process, the context doesn't get saved :(
+    // If there is no current process, the context doesn't get saved :(
         memcpy(&(curr->kernel_context), kc_in, sizeof(KernelContext));
     }
 
@@ -156,6 +155,7 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
     pte_t *kstack_new = pcb_new->kstack;
     if (kstack_new == NULL) {
         kstack_new = InitializeKernelStackProcess();
+        pcb_new->kstack = kstack_new;
     }
 
     // Copying the contents of the current process kernel stack into the child process

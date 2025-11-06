@@ -90,4 +90,6 @@ int is_in_queue(queue_t *queue, PCB *process);
  */
 int is_empty(queue_t *queue);
 
+void print_queue(queue_t *queue);
+
 #endif

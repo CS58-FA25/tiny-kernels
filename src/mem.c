@@ -87,26 +87,57 @@ void UnmapRegion0(unsigned int vpn) {
     pt_region0[vpn].pfn   = 0;
 }
 
+// void CloneFrame(int pfn_src, int pfn_dst) {
+//     // Map a scratch page to pfn_dst
+//     int scratch_page = SCRATCH_ADDR >> PAGESHIFT;
+//     pt_region0[scratch_page].pfn = pfn_dst;
+//     pt_region0[scratch_page].prot = PROT_READ | PROT_WRITE;
+//     pt_region0[scratch_page].valid = 1;
+//     WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR); // In case the CPU already has a mapping in the TLB
+
+//     // Copy the contents of pfn_src to the frame mapped by the page table to pfn_dst
+//     unsigned int pfn_src_addr = pfn_src << PAGESHIFT;
+//     memcpy((void *)(SCRATCH_ADDR), (void *)pfn_src_addr, PAGESIZE);
+
+//     // Now that the frame pfn_dst has the contents of the frame pfn_src, unmap it from the scratch address in pt_region0
+//     pt_region0[scratch_page].valid = 0;
+//     pt_region0[scratch_page].prot = 0;
+//     pt_region0[scratch_page].pfn = 0;
+//     WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR);
+// }
+
 void CloneFrame(int pfn_src, int pfn_dst) {
-    // Map a scratch page to pfn_dst
-    int scratch_page = SCRATCH_ADDR >> PAGESHIFT;
-    pt_region0[scratch_page].pfn = pfn_dst;
-    pt_region0[scratch_page].prot = PROT_READ | PROT_WRITE;
-    pt_region0[scratch_page].valid = 1;
-    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR); // In case the CPU already has a mapping in the TLB
+    // 1. Get VPNs for both scratch pages
+    int scratch_vpn_dst = SCRATCH_ADDR_DST >> PAGESHIFT;
+    int scratch_vpn_src = SCRATCH_ADDR_SRC >> PAGESHIFT;
 
-    // Copy the contents of pfn_src to the frame mapped by the page table to pfn_dst
-    unsigned int pfn_src_addr = pfn_src << PAGESHIFT;
-    memcpy((void *)(SCRATCH_ADDR), (void *)pfn_src_addr, PAGESIZE);
+    // 2. Map the source frame to the source scratch page
+    pt_region0[scratch_vpn_src].pfn = pfn_src;
+    pt_region0[scratch_vpn_src].prot = PROT_READ; // Read-only
+    pt_region0[scratch_vpn_src].valid = 1;
 
-    // Now that the frame pfn_dst has the contents of the frame pfn_src, unmap it from the scratch address in pt_region0
-    pt_region0[scratch_page].valid = 0;
-    pt_region0[scratch_page].prot = 0;
-    pt_region0[scratch_page].pfn = 0;
-    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR);
+    // 3. Map the destination frame to the destination scratch page
+    pt_region0[scratch_vpn_dst].pfn = pfn_dst;
+    pt_region0[scratch_vpn_dst].prot = PROT_READ | PROT_WRITE;
+    pt_region0[scratch_vpn_dst].valid = 1;
+
+    // 4. Flush the TLB for both virtual addresses
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR_SRC);
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR_DST);
+
+    // 5. Now, memcpy between the two VALID VIRTUAL addresses
+    memcpy((void *)SCRATCH_ADDR_DST, (void *)SCRATCH_ADDR_SRC, PAGESIZE);
+
+    // 6. Unmap both scratch pages
+    pt_region0[scratch_vpn_src].valid = 0;
+    pt_region0[scratch_vpn_dst].valid = 0;
+
+    // 7. Flush the TLB again
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR_SRC);
+    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR_DST);
 }
 
-int copyPT(PCB *src, PCB *dst) {
+int CopyPT(PCB *src, PCB *dst) {
     /**
      * For each valid page table entry i in pt_src, allocate a frame for pt_dst
      * Copy the content of the frame pt_src[i].pfn to pt_dst[i].pfn.
@@ -135,6 +166,6 @@ int copyPT(PCB *src, PCB *dst) {
             pt_dst[i].prot = pt_src[i].prot;
         }
    }
-   TracePrintf(0, "CopyPT: Succesfully copied pagetable from process PID %d to process PID %d!\n");
+   TracePrintf(0, "CopyPT: Succesfully copied pagetable from process PID %d to process PID %d!\n", src->pid, dst->pid);
    return SUCCESS;
 }
