@@ -75,13 +75,13 @@ void deletePCB(PCB *process) {
         TracePrintf(0, "delete_PCB: Process is null.\n");
         Halt();
     }
-    if (process->children_processes != NULL) {
-        for (PCB *child = process->children_processes->head; child != NULL; child = child->next) {
-            child->parent = NULL;
-            child->state = PROC_ORPHAN;
-        }
-        queueDelete(process->children_processes);
-    }
+    // if (process->children_processes != NULL) {
+    //     for (PCB *child = process->children_processes->head; child != NULL; child = child->next) {
+    //         child->parent = NULL;
+    //         child->state = PROC_ORPHAN;
+    //     }
+    //     queueDelete(process->children_processes);
+    // }
 
     if (process->next != NULL) {
         process->next->prev = process->prev;

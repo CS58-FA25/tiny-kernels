@@ -6,31 +6,25 @@
 #include "syscalls/process.h"
 #include <hardware.h> 
 
+void trapHandlerHelper(void* arg, PCB *process) {
+   if (process->delay_ticks >= 0) {
+      process->delay_ticks--;
+      if (process->delay_ticks == -1) {
+            TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
+            queueRemove(blocked_queue, process);
+            process->state = PROC_READY;
+            queueEnqueue(ready_queue, process);
+         }
+   }
+}
+
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
    TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%d\n", (int32_t)(tick_count));
 
    PCB *curr = current_process;
    memcpy(&curr->user_context, ctx, sizeof(UserContext));
-
-   PCB *blocked_curr = blocked_queue->head;
-   while (blocked_curr) {
-      PCB *next_blocked_proc = blocked_curr->next;
-      if (blocked_curr->delay_ticks >= 0) {
-         blocked_curr->delay_ticks--;
-         
-         // If the number of ticks originally allocated have already passed, remove it from the blocked queue
-         // and add it to the ready queue
-         if (blocked_curr->delay_ticks == -1) {
-            TracePrintf(0, "Process PID %d delay has elapsed!\n", blocked_curr->pid);
-            queueRemove(blocked_queue, blocked_curr);
-            blocked_curr->state = PROC_READY;
-            queueEnqueue(ready_queue, blocked_curr);
-
-         }
-      }
-      blocked_curr = next_blocked_proc;
-   }
+   queueIterate(blocked_queue, NULL, trapHandlerHelper);
 
    // For cp3, lets swap out processes at every clock tick
    PCB *next_proc = queueDequeue(ready_queue);

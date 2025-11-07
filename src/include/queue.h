@@ -3,10 +3,17 @@
 
 typedef struct pcb PCB;
 
+typedef struct QueueNode {
+    PCB* process;
+    struct QueueNode *next;
+    struct QueueNode *prev;
+} QueueNode_t;
 typedef struct queue {
-    PCB* head;
-    PCB* tail;
+    QueueNode_t* head;
+    QueueNode_t* tail;
 } queue_t;
+
+QueueNode_t *newNode();
 
 /**
  * ======================== Description =======================
@@ -91,5 +98,6 @@ int is_in_queue(queue_t *queue, PCB *process);
 int is_empty(queue_t *queue);
 
 void print_queue(queue_t *queue);
+void queueIterate(queue_t *queue, void *arg, void (*itemfunc)(void *arg, PCB *process));
 
 #endif

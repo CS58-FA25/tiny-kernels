@@ -2,6 +2,19 @@
 #include "ykernel.h"
 #include "proc.h"
 
+
+QueueNode_t *newNode() {
+    QueueNode_t *node = malloc(sizeof(QueueNode_t));
+    if (node == NULL) {
+        return NULL;
+    }
+    node->process = NULL;
+    node->next = NULL;
+    node->prev = NULL;
+    
+    return node;
+}
+
 queue_t *queueCreate() {
     queue_t *queue = malloc(sizeof(queue_t));
     if (queue) {
@@ -21,10 +34,21 @@ void queueRemove(queue_t *queue, PCB *process) {
         Halt();
     }
 
-    if (process->prev == NULL) queue->head = process->next;
-    else process->prev->next = process->next;
-    if (process->next == NULL) queue->tail = process->prev;
-    else process->next->prev = process->prev;
+    QueueNode_t *node = queue->head;
+    while (node != NULL) {
+        if (node->process == process) {
+            if (node->prev == NULL) queue->head = node->next;
+            else node->prev->next = node->next;
+            if (node->next == NULL) queue->tail = node->prev;
+            else node->next->prev = node->prev;
+            TracePrintf(0, "queueRemove: Removed process PID %d from queue!\n", process->pid);
+            free(node);
+            return;
+        }
+        node = node->next;
+    }
+
+    TracePrintf(0, "queueRemove: Couldn't find process PID %d in queue!\n", process->pid);
 
 }
 
@@ -38,14 +62,20 @@ void queueEnqueue(queue_t *queue, PCB *process) {
         TracePrintf(0, "process: process is Null. Can't queueEnqueue.\n");
         Halt();
     }
-    process->next = NULL;
-    process->prev = queue->tail;
-    if (queue->head == NULL) {
-        queue->head = process;
-    } else {
-        queue->tail->next = process;
+    QueueNode_t *node = newNode();
+    if  (node == NULL) {
+        TracePrintf(0, "queueEnqueue: Failed to allocate memory for node struct!\n");
+        return;
     }
-    queue->tail = process;
+    node->process = process;
+    node->next = NULL;
+    node->prev = queue->tail;
+    if (queue->head == NULL) {
+        queue->head = node;
+    } else {
+        queue->tail->next = node;
+    }
+    queue->tail = node;
     TracePrintf(1, "queueEnqueued PCB (%d pid)\n", process->pid);
 }
 
@@ -54,24 +84,41 @@ PCB *queueDequeue(queue_t *queue) {
         TracePrintf(0, "queue: queue is Null. Can't deqeue.\n");
         Halt();
     }
-    PCB *p = queue->head;
-    if (p == NULL) {
+    QueueNode_t *node = queue->head;
+    if (node == NULL) {
         TracePrintf(0, "queueDequeue: Queue is Empty. Can't deque.\n");
         return NULL;
     }
 
-    queue->head = p->next;
+    PCB *p = node->process;
+    queue->head = node->next;
     if (queue->head == NULL) {
         queue->tail = NULL;
     } else {
         queue->head->prev = NULL;
     }
 
-    p->next = NULL;
-    p->prev = NULL;
-
+    free(node);
     TracePrintf(1, "queueDequeue: Dequeued process (%d pid)\n", p->pid);
     return p;
+}
+
+void queueIterate(queue_t* queue, void *arg, void (*itemfunc)(void* arg, PCB* process)) {
+    if (queue == NULL || itemfunc == NULL) {
+        return;
+    }
+
+    QueueNode_t *node = queue->head;
+    while (node != NULL) {
+        // 1. Get the *next* node *before* calling the function
+        QueueNode_t *next_node = node->next;
+        
+        // 2. Call the function with the *current* node's process
+        (itemfunc)(arg, node->process);
+        
+        // 3. Move to the *next* node (which we safely stored)
+        node = next_node;
+    }
 }
 
 void queueDelete(queue_t *queue) {
@@ -93,11 +140,12 @@ int is_in_queue(queue_t * queue, PCB *process) {
         Halt();
     }
 
-    PCB* curr = queue->head;
-    while (curr != NULL) {
-        if (curr == process) return 1;
-        curr = curr->next;
+    QueueNode_t *curr_node = queue->head;
+    while (curr_node != NULL) {
+        if (curr_node->process == process) return 1;
+        curr_node = curr_node->next;
     }
+
     return 0;
 }
 
@@ -118,17 +166,14 @@ void print_queue(queue_t *queue) {
 
     // Print the queue's address for easy identification
     TracePrintf(0, "--- Printing Queue (addr %p) ---", queue);
-    
-    PCB *current = queue->head;
-    if (current == NULL) {
+    QueueNode_t *curr_node = queue->head;
+    if (curr_node == NULL) {
         TracePrintf(0, "  [ EMPTY ]");
     }
 
-    // Loop through and print each PID
-    while (current != NULL) {
-        TracePrintf(0, "  PID: %d (at %p)", current->pid, current);
-        current = current->next;
+    while (curr_node != NULL) {
+        TracePrintf(0, "  PID: %d (at %p)", curr_node->process->pid, curr_node->process);
+        curr_node = curr_node->next;
     }
-    
     TracePrintf(0, "--- End of Queue (addr %p) ---\n", queue);
 }
