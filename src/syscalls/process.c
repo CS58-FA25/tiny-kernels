@@ -64,70 +64,38 @@ int Fork (void) {
         TracePrintf(0, "Fork: Failed to find a free PCB for the child process!\n");
         return ERROR;
     }
-    TracePrintf(0, "Fork1: Current process pid %d\n", current_process->pid);
     PCB *parent = current_process;
     child->ppid = parent->pid; // Mapping the pid of the parent to the ppid in the child
 
     // Copy current `UserContext` from parent process PCB to child process's PCB
     memcpy(&child->user_context, &parent->user_context, sizeof(UserContext));
-    TracePrintf(0, "Fork2: Current process pid %d\n", current_process->pid);
-    TracePrintf(0, "1Printing ready queue inside fork\n");
-    print_queue(ready_queue);
+
     // Now need to copy region1 pagetable
-    TracePrintf(0, "Fork3: Current process pid %d\n", current_process->pid);
     int result = CopyPT(parent, child);
     if (result == ERROR) {
         TracePrintf(0, "Fork: Failed to clone region 1 memory into child process!\n");
         return ERROR;
     }
-    TracePrintf(0, "2Printing ready queue inside fork\n");
-    print_queue(ready_queue);
+
     // Copy kernel stack and kernel context from parent process into child process.
-    int rc = KernelContextSwitch(KCCopy, child, NULL);
-    //TracePrintf(0, "Fork4: Current process pid %d\n", current_process->pid);
+    int rc = KernelContextSwitch(KCCopy, child, NULL); // Child process resumes executing from here. Caused so many issues
+
     if (rc == -1) {
         TracePrintf(0, "Fork: Kernel Context Switch failed while copying kernel stack!\n");
         return ERROR;
     }
+
+    // Because both parent and child execute this part after returning from context switch
     if (current_process->pid == parent->pid) {
+        // If its the parent, set the child ready for scheduling
         child->state = PROC_READY;
         queueEnqueue(ready_queue, child);
-        (&current_process->user_context)->regs[0] = child->pid;
+        (&current_process->user_context)->regs[0] = child->pid; // Return value for Fork for the parent (child's pid)
     } else {
-        (&current_process->user_context)->regs[0] = 0;
+        (&current_process->user_context)->regs[0] = 0; // Return value for Fork for the child (0)
     }
-    // TracePrintf(0, "Fork5: Current process pid %d\n", current_process->pid);
-    // TracePrintf(0, "3Printing ready queue inside fork\n");
-    // print_queue(ready_queue);
-    // Marking the child process as ready and adding it to the ready queue
-    // child->state = PROC_READY;
-    // queueEnqueue(ready_queue, child);
-    //queueEnqueue(parent->children_processes, child); // Putting the child process in the parent's children processes queue
-    TracePrintf(0, "4Printing ready queue inside fork\n");
-    print_queue(ready_queue);
-    // Return value register for each process is going to be different
-    // (&child->user_context)->regs[0] = 0;
-    // (&parent->user_context)->regs[0] = child->pid;
-    TracePrintf(0, "Fork6: Current process pid %d\n", current_process->pid);
+
     return SUCCESS;
-
-    // if (current_process->pid == child->pid) {
-    //     TracePrintf(0, "Fork: Child process PID %d returning from fork!\n", child->pid);
-    //     child->state = PROC_RUNNING; // Marking it as running
-
-    //     WriteRegister(REG_PTBR1, (unsigned int) child->ptbr);
-    //     WriteRegister(REG_PTLR1, child->ptlr);
-    //     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
-    //     return 0;
-    // } else {
-    //     TracePrintf(0, "Fork: Parent process PID %d returning from fork!\n");
-    //     queueEnqueue(parent->children_processes, child); // Putting the child process in the parent's children processes queue
-        
-    //     // Marking the child process as ready and adding it to the ready queue
-    //     child->state = PROC_READY; 
-    //     queueEnqueue(ready_queue, child);
-    //     return child->pid;
-    // }
 }
 
 
@@ -180,21 +148,16 @@ int Delay(int clock_ticks) {
     // Get the current running process to delay
     PCB *curr = current_process;
     curr->delay_ticks = clock_ticks;
-    TracePrintf(0, "Printing ready queue inside delay before setting current to blocked and dequeuing next ready\n");
-    print_queue(ready_queue);
+
     // Change its status to blocked and add it to blocked queue
     curr->state = PROC_BLOCKED;
     queueEnqueue(blocked_queue, curr);
     
-    TracePrintf(0, "!!!!!!!Printing ready queue inside delay before dequeing next ready\n");
-    print_queue(ready_queue);
     // Get the next ready process to run
     PCB *next_proc = queueDequeue(ready_queue);
     if (next_proc == NULL) {
         next_proc = idle_proc;
     }
-    TracePrintf(0, "!!!!!!!Printing ready queue inside delay after dequeing next ready\n");
-    print_queue(ready_queue);
     
     TracePrintf(SYSCALLS_TRACE_LEVEL, "Delay: Process PID %d is delayed. Switching to process PID %d...\n", curr->pid, next_proc->pid);
     KernelContextSwitch(KCSwitch, curr, next_proc);

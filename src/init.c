@@ -36,7 +36,7 @@ static TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
 
 void InitializeVM() {
 
-    TracePrintf(0, "Building initial page tables");
+    TracePrintf(0, "InitializeVM: Building initial page tables\n");
     memset(pt_region0, 0, sizeof(pte_t) * NUM_PAGES_REGION0); // Makes the whole table clean and invalid
 
     int stack_limit_pfn = UP_TO_PAGE(KERNEL_STACK_LIMIT) >> PAGESHIFT;
@@ -66,7 +66,7 @@ void InitializeVM() {
     // Writing region 0 address into the corresponding register
     // Writing the number of entries of region0 into the corresponding register
 
-    TracePrintf(0, "VM initialization complete");
+    TracePrintf(0, "InitializeVM: VMinitialization complete\n");
 
 }
 

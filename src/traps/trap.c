@@ -16,12 +16,12 @@ void ClockTrapHandler(UserContext* ctx) {
    PCB *blocked_curr = blocked_queue->head;
    while (blocked_curr) {
       PCB *next_blocked_proc = blocked_curr->next;
-      if (blocked_curr->delay_ticks > 0) {
+      if (blocked_curr->delay_ticks >= 0) {
          blocked_curr->delay_ticks--;
          
          // If the number of ticks originally allocated have already passed, remove it from the blocked queue
          // and add it to the ready queue
-         if (blocked_curr->delay_ticks == 0) {
+         if (blocked_curr->delay_ticks == -1) {
             TracePrintf(0, "Process PID %d delay has elapsed!\n", blocked_curr->pid);
             queueRemove(blocked_queue, blocked_curr);
             blocked_curr->state = PROC_READY;
@@ -85,26 +85,21 @@ void KernelTrapHandler(UserContext* ctx) {
          case YALNIX_FORK:
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Fork syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
-            TracePrintf(0, "KernelTrapHandler1: Current process pid %d\n", current_process->pid);
             int fork_result = Fork();
             if (fork_result == ERROR) {
                TracePrintf(TRAP_TRACE_LEVEL, "Failed to execute Fork syscall!\n");
                Halt();
             }
-            TracePrintf(0, "KernelTrapHandler2: Current process pid %d\n", current_process->pid);
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
-            TracePrintf(0, "KernelTrapHandler3: Current process pid %d\n", current_process->pid);
             break;
          case YALNIX_GETPID:
-            TracePrintf(0, "Executing GetPid syscall for process PID %d\n", current_process->pid);
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing GetPid syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             int pid_result = GetPid();
-            TracePrintf(0,"PIDRESULT %d", pid_result);
             if (pid_result == -1) {
                TracePrintf(0, "Failed to execute syscall GetPid!\n");
                Halt();
             }
-            TracePrintf(0, "KernelTrapHandler2Getpid: Current process pid %d\n", current_process->pid);
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = pid_result;
             break;
