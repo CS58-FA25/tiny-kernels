@@ -8,7 +8,7 @@
 
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
-   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%x\n", tick_count);
+   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%d\n", (int32_t)(tick_count));
 
    PCB *curr = current_process;
    memcpy(&curr->user_context, ctx, sizeof(UserContext));
@@ -85,14 +85,30 @@ void KernelTrapHandler(UserContext* ctx) {
          case YALNIX_FORK:
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Fork syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
-
+            TracePrintf(0, "KernelTrapHandler1: Current process pid %d\n", current_process->pid);
             int fork_result = Fork();
             if (fork_result == ERROR) {
                TracePrintf(TRAP_TRACE_LEVEL, "Failed to execute Fork syscall!\n");
                Halt();
             }
+            TracePrintf(0, "KernelTrapHandler2: Current process pid %d\n", current_process->pid);
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            TracePrintf(0, "KernelTrapHandler3: Current process pid %d\n", current_process->pid);
             break;
+         case YALNIX_GETPID:
+            TracePrintf(0, "Executing GetPid syscall for process PID %d\n", current_process->pid);
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int pid_result = GetPid();
+            TracePrintf(0,"PIDRESULT %d", pid_result);
+            if (pid_result == -1) {
+               TracePrintf(0, "Failed to execute syscall GetPid!\n");
+               Halt();
+            }
+            TracePrintf(0, "KernelTrapHandler2Getpid: Current process pid %d\n", current_process->pid);
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = pid_result;
+            break;
+
     }
 
 }

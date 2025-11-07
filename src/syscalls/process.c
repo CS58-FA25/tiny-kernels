@@ -12,6 +12,7 @@ int Brk(void *addr) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
         return ERROR;
     }
+    
     unsigned int aligned_addr = UP_TO_PAGE((unsigned int) addr);
     unsigned int aligned_user_heap_brk = UP_TO_PAGE(current_process->user_heap_end_vaddr);
     
@@ -63,14 +64,17 @@ int Fork (void) {
         TracePrintf(0, "Fork: Failed to find a free PCB for the child process!\n");
         return ERROR;
     }
+    TracePrintf(0, "Fork1: Current process pid %d\n", current_process->pid);
     PCB *parent = current_process;
     child->ppid = parent->pid; // Mapping the pid of the parent to the ppid in the child
 
     // Copy current `UserContext` from parent process PCB to child process's PCB
     memcpy(&child->user_context, &parent->user_context, sizeof(UserContext));
+    TracePrintf(0, "Fork2: Current process pid %d\n", current_process->pid);
     TracePrintf(0, "1Printing ready queue inside fork\n");
     print_queue(ready_queue);
     // Now need to copy region1 pagetable
+    TracePrintf(0, "Fork3: Current process pid %d\n", current_process->pid);
     int result = CopyPT(parent, child);
     if (result == ERROR) {
         TracePrintf(0, "Fork: Failed to clone region 1 memory into child process!\n");
@@ -80,21 +84,31 @@ int Fork (void) {
     print_queue(ready_queue);
     // Copy kernel stack and kernel context from parent process into child process.
     int rc = KernelContextSwitch(KCCopy, child, NULL);
+    //TracePrintf(0, "Fork4: Current process pid %d\n", current_process->pid);
     if (rc == -1) {
         TracePrintf(0, "Fork: Kernel Context Switch failed while copying kernel stack!\n");
         return ERROR;
     }
-    TracePrintf(0, "3Printing ready queue inside fork\n");
-    print_queue(ready_queue);
+    if (current_process->pid == parent->pid) {
+        child->state = PROC_READY;
+        queueEnqueue(ready_queue, child);
+        (&current_process->user_context)->regs[0] = child->pid;
+    } else {
+        (&current_process->user_context)->regs[0] = 0;
+    }
+    // TracePrintf(0, "Fork5: Current process pid %d\n", current_process->pid);
+    // TracePrintf(0, "3Printing ready queue inside fork\n");
+    // print_queue(ready_queue);
     // Marking the child process as ready and adding it to the ready queue
-    child->state = PROC_READY;
-    queueEnqueue(ready_queue, child);
+    // child->state = PROC_READY;
+    // queueEnqueue(ready_queue, child);
     //queueEnqueue(parent->children_processes, child); // Putting the child process in the parent's children processes queue
     TracePrintf(0, "4Printing ready queue inside fork\n");
     print_queue(ready_queue);
     // Return value register for each process is going to be different
-    (&child->user_context)->regs[0] = 0;
-    (&parent->user_context)->regs[0] = child->pid;
+    // (&child->user_context)->regs[0] = 0;
+    // (&parent->user_context)->regs[0] = child->pid;
+    TracePrintf(0, "Fork6: Current process pid %d\n", current_process->pid);
     return SUCCESS;
 
     // if (current_process->pid == child->pid) {
