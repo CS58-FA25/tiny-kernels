@@ -90,6 +90,7 @@ int Fork (void) {
         // If its the parent, set the child ready for scheduling
         child->state = PROC_READY;
         queueEnqueue(ready_queue, child);
+        queueEnqueue(parent->children_processes, child); // Also add it to the child processes queue of the parent
         (&current_process->user_context)->regs[0] = child->pid; // Return value for Fork for the parent (child's pid)
     } else {
         (&current_process->user_context)->regs[0] = 0; // Return value for Fork for the child (0)
