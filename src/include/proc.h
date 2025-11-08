@@ -64,9 +64,11 @@ typedef struct pcb {
 extern PCB *idle_proc; // Pointer to the idle process PCB
 extern PCB *init_proc;
 extern PCB *current_process; // Pointer to the current running process PCB
+
 extern queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
 extern queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
 extern queue_t *zombie_queue; // A queue of processes that have terminated but whose parent has not yet called Wait()
+extern queue_t *waiting_parents; // A queue of processes blocked waiting for a child to exit;
 
 extern PCB **proc_table; // List of processes. Not all of them are actual processes but are pointers to processes that could be initialized by LoadProgram
 

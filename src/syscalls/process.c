@@ -94,6 +94,7 @@ int Fork (void) {
         (&current_process->user_context)->regs[0] = child->pid; // Return value for Fork for the parent (child's pid)
     } else {
         (&current_process->user_context)->regs[0] = 0; // Return value for Fork for the child (0)
+        current_process->parent = parent;
     }
 
     return SUCCESS;
@@ -112,24 +113,77 @@ int Exec (char * file, char ** argvec) {
 }
 
 void Exit (int status) {
-   // if this is pid 1, do not allow
-   // alternatively if this has no parent (ppid == -1, though this should mean this is also pid 1)
-   // if this is not the upmost parent, check if the parent is waiting for this process
-   // if so, inform parent at end
-   // if this parent has children, rehome them to the parent
-   // close open file descriptors
-   // get pcb, set exit status
-   // set status to zombie
-   // if this pcb has a pointer to the next item in the scheduler queue, inform the scheduler to go here next
-   // trigger scheduler
+    // Need to handle orphan processes somehow
+    PCB* curr = current_process;
+    if (curr->pid == 1) {
+        deletePCB(curr);
+        Halt();
+    }
+
+    queueEnqueue(zombie_queue, curr);
+    curr->exit_status = status;
+    curr->state = PROC_ZOMBIE;
+
+    PCB *parent = curr->parent;
+    if (parent && parent->waiting_for_child_pid) {
+        parent->state = PROC_READY;
+        parent->waiting_for_child_pid = 0;
+        queueEnqueue(ready_queue, parent);
+    }
+    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    int rc = KernelContextSwitch(KCSwitch, curr, next);
+    if (rc == -1) {
+        TracePrintf(0, "Exit: Failed to switch context inside syscall Exit!\n");
+        Halt();
+    }
 }
 
 
 int Wait (int * status_ptr) {
-   // if the caller has no children, return error
-   // infinite loop, until you find a zombie child
-   // the infinite loop will require a pause in execution. however, if there is already a zombie child, then this returns immediately
-   // IF status_ptr is not null, this will be filled with child exit status
+    PCB *curr = current_process;
+    if (curr->children_processes->head == NULL) {
+        TracePrintf(0, "Wait: Error! No children to wait on!\n");
+        return ERROR;
+    }
+
+    QueueNode_t *zombie_node = zombie_queue->head;
+    while (zombie_node != NULL) {
+        PCB *zombie_process = zombie_node->process;
+        if (zombie_process->ppid == curr->pid) {
+            *status_ptr = zombie_process->exit_status;
+            int pid = zombie_process->pid;
+            queueRemove(curr->children_processes, zombie_process);
+            queueRemove(zombie_queue, zombie_process);
+            deletePCB(zombie_process);
+            return pid;
+        }
+        zombie_node = zombie_node->next;
+    }
+
+    curr->state = PROC_BLOCKED;
+    curr->waiting_for_child_pid = 1;
+    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    int rc = KernelContextSwitch(KCSwitch, curr, next);
+    if (rc == -1) {
+        TracePrintf(0, "Wait: Failed to switch context inside syscall Wait!\n");
+        Halt();
+    }
+
+    zombie_node = zombie_queue->head;
+    while (zombie_node != NULL) {
+        PCB *zombie_process = zombie_node->process;
+        if (zombie_process->ppid == curr->pid) {
+            *status_ptr = zombie_process->exit_status;
+            int pid = zombie_process->pid;
+            queueRemove(curr->children_processes, zombie_process);
+            queueRemove(zombie_queue, zombie_process);
+            deletePCB(zombie_process);
+            return pid;
+        }
+        zombie_node = zombie_node->next;
+    }
+    return ERROR;
+
 }
 
 int GetPid (void) {
