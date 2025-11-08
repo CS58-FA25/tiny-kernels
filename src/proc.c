@@ -70,35 +70,42 @@ PCB *allocNewPCB() {
 
 }
 
+void deletePCBHelper(void *arg, PCB* process) {
+    process->parent = NULL;
+    process->state = PROC_ORPHAN;
+}
+
 void deletePCB(PCB *process) {
     if (process == NULL) {
         TracePrintf(0, "delete_PCB: Process is null.\n");
         Halt();
     }
-    // if (process->children_processes != NULL) {
-    //     for (PCB *child = process->children_processes->head; child != NULL; child = child->next) {
-    //         child->parent = NULL;
-    //         child->state = PROC_ORPHAN;
-    //     }
-    //     queueDelete(process->children_processes);
-    // }
-
-    if (process->next != NULL) {
-        process->next->prev = process->prev;
+    if (process->children_processes != NULL) {
+        queueIterate(process->children_processes, NULL, deletePCBHelper);
     }
-    
-    if (process->prev != NULL) {
-        process->prev->next = process->next;
-    }
-    
-    for (int i = 0; i < NUM_PAGES_REGION1; i++) {
-        if (process->ptbr[i].valid == 1) {
-            
-        }
-    }
-    free(process->ptbr);
+    // Free up the queue created for children processes
     queueDelete(process->children_processes);
-    
+
+    /**
+     * Delete all instances of it in any queue
+     * free the memory used by it in region 1 and its kernel stack
+    */
+   if (process->state == PROC_RUNNING) {
+    queueRemove(blocked_queue, process);
+   } 
+   else if (process->state == PROC_READY) {
+    queueRemove(ready_queue, process);
+   }
+   else if (process->state == PROC_ZOMBIE) {
+    queueRemove(zombie_queue, process);
+   }
+    // Free memory allocated for region 1 (make sure we freed the frames used up)
+    free(process->ptbr);
+    // Free memory allocated for kstack (make sure we freed the frames used up)
+    free(process->kstack);
+
+    // finally free up the pcb struct allocated for this process
+    free(process);
 }
 
 PCB *getFreePCB(void) {

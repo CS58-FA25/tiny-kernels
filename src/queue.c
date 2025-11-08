@@ -2,7 +2,6 @@
 #include "ykernel.h"
 #include "proc.h"
 
-
 QueueNode_t *newNode() {
     QueueNode_t *node = malloc(sizeof(QueueNode_t));
     if (node == NULL) {
@@ -110,13 +109,8 @@ void queueIterate(queue_t* queue, void *arg, void (*itemfunc)(void* arg, PCB* pr
 
     QueueNode_t *node = queue->head;
     while (node != NULL) {
-        // 1. Get the *next* node *before* calling the function
         QueueNode_t *next_node = node->next;
-        
-        // 2. Call the function with the *current* node's process
         (itemfunc)(arg, node->process);
-        
-        // 3. Move to the *next* node (which we safely stored)
         node = next_node;
     }
 }
@@ -126,15 +120,21 @@ void queueDelete(queue_t *queue) {
         TracePrintf(0, "queueDelete: queue is null. Can't delete.\n");
         Halt();
     }
+    QueueNode_t *curr = queue->head;
+    while (curr != NULL) {
+        QueueNode_t *next = curr->next;
+        free(curr);
+        curr = next;
+    }
     free(queue);
 }
-
 
 int is_in_queue(queue_t * queue, PCB *process) {
     if (queue == NULL) {
         TracePrintf(0, "queue: Queue is empty. Can't look up reqeusted process.\n");
         Halt();
     }
+    
     if (process == NULL) {
         TracePrintf(0, "process: process is Null. Can't look it up in queue.\n");
         Halt();
@@ -156,7 +156,6 @@ int is_empty(queue_t *queue) {
     }
     return (queue->head == NULL);
 }
-
 
 void print_queue(queue_t *queue) {
     if (queue == NULL) {
