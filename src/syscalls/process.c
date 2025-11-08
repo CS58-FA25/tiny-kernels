@@ -130,6 +130,8 @@ void Exit (int status) {
         parent->waiting_for_child_pid = 0;
         queueEnqueue(ready_queue, parent);
     }
+
+    TracePrintf(0, "Exiting process PID %d and switching to a different process...\n", curr->pid);
     PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
     int rc = KernelContextSwitch(KCSwitch, curr, next);
     if (rc == -1) {
@@ -150,7 +152,8 @@ int Wait (int * status_ptr) {
     while (zombie_node != NULL) {
         PCB *zombie_process = zombie_node->process;
         if (zombie_process->ppid == curr->pid) {
-            *status_ptr = zombie_process->exit_status;
+            TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
+            if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
             int pid = zombie_process->pid;
             queueRemove(curr->children_processes, zombie_process);
             queueRemove(zombie_queue, zombie_process);
@@ -173,7 +176,8 @@ int Wait (int * status_ptr) {
     while (zombie_node != NULL) {
         PCB *zombie_process = zombie_node->process;
         if (zombie_process->ppid == curr->pid) {
-            *status_ptr = zombie_process->exit_status;
+            TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
+            if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
             int pid = zombie_process->pid;
             queueRemove(curr->children_processes, zombie_process);
             queueRemove(zombie_queue, zombie_process);
