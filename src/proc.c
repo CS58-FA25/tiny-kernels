@@ -87,19 +87,6 @@ void deletePCB(PCB *process) {
     // Free up the queue created for children processes
     queueDelete(process->children_processes);
 
-    /**
-     * Delete all instances of it in any queue
-     * free the memory used by it in region 1 and its kernel stack
-    */
-   if (process->state == PROC_RUNNING) {
-    queueRemove(blocked_queue, process);
-   } 
-   else if (process->state == PROC_READY) {
-    queueRemove(ready_queue, process);
-   }
-   else if (process->state == PROC_ZOMBIE) {
-    queueRemove(zombie_queue, process);
-   }
     // Free memory allocated for region 1 (make sure we freed the frames used up)
     free(process->ptbr);
     // Free memory allocated for kstack (make sure we freed the frames used up)

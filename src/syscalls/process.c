@@ -76,6 +76,7 @@ int Fork (void) {
         TracePrintf(0, "Fork: Failed to clone region 1 memory into child process!\n");
         return ERROR;
     }
+    // Copy heap brk and all the user stuff
 
     // Copy kernel stack and kernel context from parent process into child process.
     int rc = KernelContextSwitch(KCCopy, child, NULL); // Child process resumes executing from here. Caused so many issues
@@ -101,15 +102,16 @@ int Fork (void) {
 }
 
 
-int Exec (char * file, char ** argvec) {
-   // Open file
-   // Read header, find entry
-   // Load file
-   // Create argc, argv
-   // Create process, place start to location of entry, load argc and argv into stack
-   // If anything above fails, return identifiable error for it
-   // Otherwise return ok
-   // Thought: If execution fails immediately, it could be worth returning that value instead
+int Exec(char *filename, char **argvec) {
+    PCB *curr = current_process;
+    int load_status = LoadProgram(filename, argvec, curr);
+    if (load_status == ERROR) {
+        TracePrintf(0, "Exec: Process PID %d failed to execute %s.\n", curr->pid, filename);
+        return ERROR;
+    }
+
+    TracePrintf(0, "Exec: Succeded in executing %s for process PID %d.\n", filename, curr->pid);
+    return SUCCESS;
 }
 
 void Exit (int status) {

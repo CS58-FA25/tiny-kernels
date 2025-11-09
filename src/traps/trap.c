@@ -100,7 +100,7 @@ void KernelTrapHandler(UserContext* ctx) {
          case YALNIX_WAIT:
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Wait syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
-            int *status_ptr = ctx->regs[0];
+            int *status_ptr = (int *)ctx->regs[0];
             int wait_pid = Wait(status_ptr);
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = wait_pid;
@@ -109,6 +109,15 @@ void KernelTrapHandler(UserContext* ctx) {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Exit syscall for process PID %d\n", current_process->pid);
             int exit_status = ctx->regs[0];
             Exit(exit_status);
+            break;
+         case YALNIX_EXEC:
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing Exec syscall for process PID %d\n", current_process->pid);
+            char *filename = (char *)ctx->regs[0];
+            char **argvec = (char **)ctx->regs[1];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int exec_result = Exec(filename, argvec);
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = exec_result;
             break;
 
     }
