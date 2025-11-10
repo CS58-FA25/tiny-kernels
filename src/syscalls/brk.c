@@ -2,7 +2,15 @@
 // // in Yalnix, I do not believe it is in Linux
 // // Also my mental association with brk is with sbrk and malloc, so this is just easier for
 // // peace of mind
+#include "../queue.h"
+#include "../proc.h"
+#include "../kernel.h"
+#include "syscalls.h"
+#include "hardware.h"
+#include "ykernel.h"
+#include "../mem.h"
 
+int Brk(void *addr) {
     if (addr == NULL) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
         return -1;

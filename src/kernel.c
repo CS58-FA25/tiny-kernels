@@ -93,16 +93,11 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
         TracePrintf(0, "Loaded program: %d (%p) (%s) \n", pidx, prog, prog->file);
 	// This run the program with the provided context
 	RunProgram(pidx, uctxt);
+	queueEnqueue(ready_queue, prog->_pcb);
+	KernelContextSwitch(KCCopy, prog->_pcb, NULL);
+	memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
 #endif
     }
-
-    //init_proc = getFreePCB();
-    // if (init_proc == NULL) {
-    //    TracePrintf(0, "Failed to create the init process pdb.\n");
-    // }
-    // init_proc->kstack = InitializeKernelStackProcess();
-    // memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext));
-    // returns to user mode.
 }
 
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
@@ -117,7 +112,7 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     // Switch kernel stacks in region 0 from current process to next process
     pte_t *next_kstack = next->kstack;
     for(int i = 0; i < KSTACK_PAGES; i++) {
-        int vpn = KERNEL_STACK_BASE + i;
+        int vpn = (KERNEL_STACK_BASE >> PAGESHIFT) + i;
         pt_region0[vpn] = next_kstack[i];
     }
 

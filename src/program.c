@@ -140,12 +140,15 @@ int RunProgram(int idx, UserContext* ctx) {
        int pfn = pcb->ptbr[pgno].pfn;
        MapPage(pcb->ptbr, pgno, pfn, PROT_READ | PROT_EXEC);
    }
+
    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
 
-   pcb->user_context.pc = program->li.entry;
+   memcpy(&(pcb->user_context), ctx, sizeof(UserContext));
+
+   pcb->user_context.pc = (caddr_t) program->li.entry;
    program->_pcb = pcb;
    program->_pcb->kstack = InitializeKernelStackProcess();
-   memcpy(&(program->_pcb->user_context), ctx, sizeof(UserContext));
+   TracePrintf(1, "Loaded program with PCB (%p) PC (0x%x) SP (%p)", pcb, pcb->user_context.pc, sp);
    return 0;
 }
 
