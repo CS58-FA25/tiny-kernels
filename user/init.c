@@ -2,10 +2,10 @@
 #include <yuser.h>
 
 int main(int argc, char** argv) {
-    while (0) {
+    while (1) {
 	int pid = GetPid();
         TracePrintf(1, "init, my pid is %x\n");
-	Pause();
+	Delay(5);
     }
     return 0;
 }
