@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
         TracePrintf(1, "Hi this is child process! my pid is %d.\n", child_pid);
         TracePrintf(1, "Child process is going to execute a for loop and then exit!\n");
         for (int i = 0; i < 2; i++) {
-            TracePrintf(1, "Process PID %d inside for loop, iteration %d", child_pid, i + 1);
+            TracePrintf(1, "Process PID %d inside for loop, iteration %d\n", child_pid, i + 1);
             Delay(2);
         }
         TracePrintf(1, "Child process finished iterating! Now exiting!.\n");
