@@ -6,10 +6,8 @@
 
 #define TRAP_TRACE_LEVEL 2 /* TODO: (TEMPORARY) - If hardware is 1, traps can be at 2 */
 
-// From libhardware.so
-extern uint32_t tick_count;
-
 typedef void (*TrapHandler)(UserContext*); // Page 23
+
 void ClockTrapHandler(UserContext* ctx);
 void MathTrapHandler(UserContext* ctx);
 void MemoryTrapHandler(UserContext* ctx);

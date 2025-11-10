@@ -1,50 +1,3 @@
-#include "traps/trap.h"
-#include "kernel.h"
-#include "proc.h"
-#include "queue.h"
-#include "kernel.h"
-#include "syscalls/process.h"
-#include <hardware.h> 
-
-void trapHandlerHelper(void* arg, PCB *process) {
-   if (process->delay_ticks >= 0) {
-      process->delay_ticks--;
-      if (process->delay_ticks == -1) {
-            TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
-            queueRemove(blocked_queue, process);
-            process->state = PROC_READY;
-            queueEnqueue(ready_queue, process);
-         }
-   }
-}
-
-void ClockTrapHandler(UserContext* ctx) {
-   // Checkpoint 2: Temporary code
-   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%d\n", (int32_t)(tick_count));
-
-   PCB *curr = current_process;
-   memcpy(&curr->user_context, ctx, sizeof(UserContext));
-   queueIterate(blocked_queue, NULL, trapHandlerHelper);
-
-   // For cp3, lets swap out processes at every clock tick
-   PCB *next_proc = queueDequeue(ready_queue);
-
-   // If we found another ready process, switch out to it
-   if (next_proc) {
-      TracePrintf(0, "Switching from PID %d to PID %d\n", curr->pid, next_proc->pid);
-      
-      // If current was running, put it back in ready status and put in ready queue
-      if (curr->state == PROC_RUNNING && curr->pid != 0) {
-         curr->state = PROC_READY;
-         queueEnqueue(ready_queue, curr);
-      }
-      KernelContextSwitch(KCSwitch, curr, next_proc);
-   }
-
-
-   memcpy(ctx, &current_process->user_context, sizeof(UserContext));
-}
-
 void KernelTrapHandler(UserContext* ctx) {
     int syscall_number = ctx->code;
     switch (syscall_number) {
@@ -66,7 +19,7 @@ void KernelTrapHandler(UserContext* ctx) {
         case YALNIX_BRK:
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Brk syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
-            
+
             void *addr = (void *)ctx->regs[0];
             int brk_result = Brk(addr);
             if (brk_result == ERROR) {
@@ -119,61 +72,6 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = exec_result;
             break;
-
     }
 
 }
-
-void MathTrapHandler(UserContext* ctx) {
-   // if it's possible to get information outside of offending address
-   // out of the context, then use this here to inform loggers/kernel/listeners/etc.
-   // of the exception
-   //
-   // kill the offending process
-   // notify scheduler that it was killed, do not switch back to it
-   // instead, scheduler should handle necessary cleanup (outside of initial cleanup handled here)
-}
-
-
-// Does nothing
-void NotImplementedTrapHandler(UserContext* ctx) {}
-
-
-void DiskTrapHandler(UserContext* ctx) {
-    NotImplementedTrapHandler(ctx);
-}
-
-
-void MemoryTrapHandler(UserContext* ctx) {
-   // get the ctx->code to determine what type of memory exception this is
-   // based on the exception, report this information to whoever needs to be aware (loggers, kernel)
-   //
-   // kill the process and inform the scheduler of this change
-   // ---> scheduler should be aware of upcoming deletion (post-completion)
-}
-
-void IllegalInstructionTrapHandler(UserContext* ctx) {
-   // get the offending address, current pc
-   // report this information
-   //
-   // kill the process and inform the scheduler of this change
-   // ---> scheduler should be aware of upcoming deletion (post-completion)
-}
-
-void TtyTrapTxHandler(UserContext* ctx) {
-   // get whether this is a tx/rx operation
-   //
-   // if it's read, then a complete line of input is ready to be read
-   // inform anyone waiting on a line of input from the tty
-   //
-   // if it's a write, then a complete line of input has been written to the tty
-   // inform anyone waiting (such as a write handler) that this operation has succeeded
-   //
-   // update scheduler on fulfillment of requirements for waiters
-}
-
-void TtyTrapRxHandler(UserContext* ctx) {
-
-}
-
-
