@@ -1,3 +1,4 @@
+#include <hardware.h>
 
 void TtyTrapTxHandler(UserContext* ctx) {
    int tty = ctx->code;

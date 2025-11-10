@@ -1,3 +1,5 @@
+#include <hardware.h>
+
 void MemoryTrapHandler(UserContext* ctx) {
    // get the ctx->code to determine what type of memory exception this is
    // based on the exception, report this information to whoever needs to be aware (loggers, kernel)

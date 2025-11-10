@@ -1,4 +1,4 @@
-#include "syscalls/tty.h"
+#include "src/include/syscalls/tty.h"
 
 // A note on TtyPrintf: I see that it's declared in the header that has
 // most of the syscalls listed

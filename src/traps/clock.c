@@ -1,6 +1,7 @@
-#include "traps/clock.h"
-#include "proc.h"
-#include "queue.h"
+#include "src/include/traps/clock.h"
+#include "src/include/proc.h"
+#include "src/include/queue.h"
+#include "src/include/kernel.h"
 
 #include <hardware.h>
 
@@ -37,6 +38,8 @@ void ClockTrapHandler(UserContext* ctx) {
          queueEnqueue(ready_queue, curr);
       }
       KernelContextSwitch(KCSwitch, curr, next_proc);
+      TracePrintf(0, "After KCS: current_process = %p (pid %d), next_proc = %p (pid %d)\n",
+           current_process, current_process->pid, next_proc, next_proc->pid);
    }
 
 

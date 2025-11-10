@@ -1,8 +1,8 @@
-#include "hardware.h"
+#include <hardware.h>
 #include "yalnix.h"
 #include "ykernel.h"
-#include "kernel.h"
-#include "mem.h"
+#include "include/kernel.h"
+#include "include/mem.h"
 #include "traps/trap.h"
 
 // Create trap handlers, set them all to not implemented.

@@ -1,7 +1,6 @@
-
 #include "hardware.h"
-#include "mem.h"
-#include "kernel.h"
+#include "include/mem.h"
+#include "include/kernel.h"
 
 // Defining variables for the free frames list
 int nframes;

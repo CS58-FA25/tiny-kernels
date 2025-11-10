@@ -1,3 +1,9 @@
+#include "src/include/proc.h"
+#include "src/include/kernel.h"
+#include "src/include/traps/trap.h"
+
+#include <hardware.h>
+
 void KernelTrapHandler(UserContext* ctx) {
     int syscall_number = ctx->code;
     switch (syscall_number) {

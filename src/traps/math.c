@@ -1,3 +1,5 @@
+#include <hardware.h>
+
 void MathTrapHandler(UserContext* ctx) {
    // if it's possible to get information outside of offending address
    // out of the context, then use this here to inform loggers/kernel/listeners/etc.
