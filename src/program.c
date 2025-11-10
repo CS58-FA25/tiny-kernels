@@ -74,7 +74,7 @@ int RunProgram(int idx, UserContext* ctx) {
 
    if (stack_npg + data_pg1 + data_npg + text_pg1 >= MAX_PT_LEN) {
        // too big
-       return -1;
+       return KILL;
    }
 
    for (int pgno = 0; pgno < program->li.t_npg; pgno++) {
@@ -98,19 +98,21 @@ int RunProgram(int idx, UserContext* ctx) {
 
    int fd = open(program->file, O_RDONLY);
    if (fd < 0) {
-       return -1;
+       return KILL;
    }
 
    size_t textsz = program->li.t_npg << PAGESHIFT;
    lseek(fd, program->li.t_faddr, SEEK_SET);
    if (read(fd, (void*)program->li.t_vaddr, textsz) != textsz) { 
        close(fd);
+       return KILL;
    }
 
    size_t datasz = program->li.id_npg << PAGESHIFT;
    lseek(fd, program->li.id_faddr, SEEK_SET);
    if (read(fd, (void*)program->li.id_vaddr, datasz) != datasz) { 
        close(fd);
+       return KILL;
    }
 
    TracePrintf(0, "Copied over program data\n");
@@ -152,7 +154,7 @@ int RunProgram(int idx, UserContext* ctx) {
    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr);
    WriteRegister(REG_PTLR1, current_process->ptlr);
    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
-   return 0;
+   return SUCCESS;
 }
 
 
@@ -224,8 +226,7 @@ int LoadProgram(char* program, int argc, char** argv) {
     free(p);
     return -1;
 #else
-    extern UserContext fake_frame_global; // Stealing this,a gain
-    return _RunProgram(p, &fake_frame_global);
+    return _RunProgram(p, current_program->user_context);
 #endif
 }
 
