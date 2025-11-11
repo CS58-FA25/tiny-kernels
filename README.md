@@ -1,7 +1,5 @@
-# Checkpoint 3
-- Using late submission token!
-- Did we make the checkpoint? Yes we did! Only one issue to figure is that theres a mismatch between the pid printed out by `SysGetPid` and the one indicated by the hardware.
-
+# Checkpoint 4
+- Did we make the checkpoint? Yes we did! Run the bash script `cp4_test.sh` to run the two test programs `user/cp4_tests/test1` and `user/cp4_tests/test2`.
 
 # Team
 - Isabella Fusari
