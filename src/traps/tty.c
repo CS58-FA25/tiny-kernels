@@ -1,9 +1,11 @@
+#include "terminal.h"
+
 #include <hardware.h>
 
 void TtyTrapTxHandler(UserContext* ctx) {
    int tty = ctx->code;
+   // Tty was written to, inform waiting proc
 
-   // get whether this is a tx/rx operation
 
    //
    // if it's read, then a complete line of input is ready to be read
@@ -17,5 +19,6 @@ void TtyTrapTxHandler(UserContext* ctx) {
 
 void TtyTrapRxHandler(UserContext* ctx) {
    int tty = ctx->code;
+   // Tty was read, inform
 }
 
