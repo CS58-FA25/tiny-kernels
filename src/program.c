@@ -35,17 +35,17 @@ static void AllocateProgramStack(Program* program) {
 
 int RunProgram(int idx, UserContext* ctx) {
    if (idx > _program_listing.max_progs || idx > _program_listing.nprogs) {
-      return -1;
+      return ERROR;
    }
 
    Program* program = _program_listing.progs[idx];
    if (program == 0x0) {
-       return -1;
+       return ERROR;
    }
 
    PCB* pcb;
    if ((pcb = getFreePCB()) == 0x0) {
-        return -1;
+        return ERROR;
    }
 
    for (int idx = 0; idx < pcb->ptlr; idx++) {
@@ -92,8 +92,8 @@ int RunProgram(int idx, UserContext* ctx) {
        MapPage(pcb->ptbr, (pcb->ptlr - stack_npg) + pgno, pfn, PROT_READ | PROT_WRITE);
    }
 
-   WriteRegister(REG_PTBR1, pcb->ptbr);
-   WriteRegister(REG_PTLR1, pcb->ptlr);
+   WriteRegister(REG_PTBR1, (unsigned int) pcb->ptbr);
+   WriteRegister(REG_PTLR1, (unsigned int) pcb->ptlr);
    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
 
    int fd = open(program->file, O_RDONLY);

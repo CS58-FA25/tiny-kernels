@@ -142,8 +142,6 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     WriteRegister(REG_PTLR1, next->ptlr);
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
 
-    TracePrintf(1, "KCSwitch\n");
-
     return &(next->kernel_context);
 }
 
@@ -170,7 +168,6 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
         CloneFrame(pfn_parent, pfn_child);
     }
     
-    TracePrintf(1, "KCCopy\n");
     // In case the CPU switches to the new process after returning. We don't want it to use old kstack mappings
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_KSTACK); 
     
