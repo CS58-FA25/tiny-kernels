@@ -20,22 +20,6 @@ int kernel_brk_page;
 int text_section_base_page;
 int data_section_base_page;
 
-/* ================== Terminals ================== */
-#define NUM_TERMINALS 4
-#define TERMINAL_BUFFER_SIZE 1024
-typedef struct terminal {
-    int id;                        // terminal number (0–3)
-    char input_buffer[TERMINAL_BUFFER_SIZE];
-    int input_head;
-    int input_tail;
-    char output_buffer[TERMINAL_BUFFER_SIZE];
-    int output_head;
-    int output_tail;
-    int transmitting;              // flag: is a transmission in progress?
-    PCB *waiting_read_proc;      // process blocked on reading
-    PCB *waiting_write_proc;     // process blocked on writing
-} terminal_t;
-
 /* ==================== Helpers =================== */
 
 void CloneFrame(int pfn1, int pfn2);
@@ -53,6 +37,9 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 
     TracePrintf(1, "Initializing virtual memory (creating region0 of page table and mapping to physical frames)...\n");
     InitializeVM();
+
+    TracePrintf(1, "Initializing the terminals....\n");
+    InitializeTerminals();
 
     TracePrintf(1, "Initializing the interrupt vector table....\n");
     InitializeInterruptVectorTable();
