@@ -58,7 +58,14 @@ typedef struct pcb {
     int last_run_tick;          /* last tick when this process ran (scheduler info) */
     int delay_ticks;   /* How muany more ticks should this process be delayed for */
 
-    /* optional: file descriptors, tty state, etc. (omitted for cp1) */
+    /* bookkeeping for terminal operations */
+    void *tty_read_buf;  // Pointer to buffer in user space for TTY read operations.
+    int tty_read_len;    // Length of TTY read buffer
+    void *tty_write_buf; // Pointer to buffer in user space for TTY write operations
+    int tty_write_len;   // Length of TTY write buffer
+
+    void *tty_kernel_read_buf; // Pointer to read buffer in kernel space.
+    int kernel_read_size;
 } PCB;
 
 extern PCB *idle_proc; // Pointer to the idle process PCB
