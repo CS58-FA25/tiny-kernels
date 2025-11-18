@@ -6,6 +6,7 @@
 #include "mem.h"
 #include "syscalls/process.h"
 #include <hardware.h> 
+#include "syscalls/tty.h"
 
 void trapHandlerHelper(void *arg, PCB *process);
 int growStack(unsigned int addr);
@@ -111,6 +112,26 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = exec_result;
             break;
+         case YALNIX_TTY_READ:
+         TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyRead syscall for process PID %d\n", current_process->pid);
+         int tty_id = ctx->regs[0];
+         void *buf = (void *)ctx->regs[1]; // Probably need to check here if the buffer address is in region 1
+         int len = ctx->regs[2];
+        
+         PCB *curr = current_process;
+         memcpy(&curr->user_context, ctx, sizeof(UserContext));
+         int rc = TtyRead(tty_id, buf, len);
+         // Checking if we managed to read anything and save it in the kernel read_buf and then finally move it to the user space memory at address buf
+         if (curr->tty_kernel_read_buf != NULL) {
+            memcpy(buf, curr->tty_kernel_read_buf, curr->kernel_read_size);
+            free(curr->tty_kernel_read_buf);
+            curr->tty_kernel_read_buf = NULL;
+            curr->kernel_read_size = 0;
+         }
+
+         memcpy(ctx, &curr->user_context, sizeof(UserContext));
+         ctx->regs[0] = rc;
+         break;
 
     }
 
@@ -175,7 +196,7 @@ void IllegalInstructionTrapHandler(UserContext* ctx) {
 }
 
 
-void TtyTrapTxHandler(UserContext* ctx) {
+void TtyTrapTransmitHandler(UserContext* ctx) {
    // get whether this is a tx/rx operation
    //
    // if it's read, then a complete line of input is ready to be read
@@ -187,7 +208,52 @@ void TtyTrapTxHandler(UserContext* ctx) {
    // update scheduler on fulfillment of requirements for waiters
 }
 
-void TtyTrapRxHandler(UserContext* ctx) {
+void TtyTrapReceiveHandler(UserContext* ctx) {
+   int tty_id = ctx->code;
+   terminal_t *terminal = &terminals[tty_id];
+
+   int len = TtyReceive(terminal, terminal->read_buffer + terminal->read_buffer_len, TERMINAL_MAX_LINE - terminal->read_buffer_len);
+   terminal->read_buffer_len += len;
+
+   TracePrintf(0, "TtyTrapReceiveHandler: Terminal tty_id %d now has %d bytes available for reading.\n", terminal->tty_id, terminal->read_buffer_len);
+   TracePrintf(0, "TtyTrapReceiveHandler: Checking if there are any processes waiting to read from terminal tty_id %d...\n", terminal->tty_id);
+
+   if (!is_empty(terminal->blocked_readers)) {
+      PCB *reader = queueDequeue(terminal->blocked_readers);
+      int bytes_to_read = (reader->tty_read_len < terminal->read_buffer_len) ? reader->tty_read_len : terminal->read_buffer_len;
+      TracePrintf(0, "TtyTrapReceiveHandler: Process PID %d has woken up to read %d bytes!\n", reader->pid, bytes_to_read);
+
+      char *kernel_buffer = malloc(bytes_to_read);
+      if (kernel_buffer != NULL) {
+         memcpy(kernel_buffer, terminal->read_buffer, bytes_to_read);
+         reader->tty_kernel_read_buf = kernel_buffer;
+         reader->kernel_read_size = bytes_to_read;
+      } else {
+         // In case the allocation failed. Was thinking of killing that process but no need for that
+         bytes_to_read = 0;
+      }
+
+      // Set return value to number of bytes read
+      TracePrintf(0, "TtyTrapReceiveHandler: Process PID %d read %d bytes from terminal tty_id %d.\n", reader->pid, bytes_to_read, terminal->tty_id);
+      reader->user_context.regs[0] = bytes_to_read;
+
+      if (bytes_to_read < terminal->read_buffer_len) {
+         memmove(terminal->read_buffer, terminal->read_buffer + bytes_to_read, terminal->read_buffer_len - bytes_to_read);
+         terminal->read_buffer_len -= bytes_to_read;
+      } else {
+         // In case we read the whole data on the terminal
+         terminal->read_buffer_len = 0;
+      }
+
+      // Remove the reader from the blocked queues
+      queueRemove(blocked_queue, reader);
+      queueRemove(terminal->blocked_readers, reader);
+
+      // Now put back this process into ready queue
+      reader->state = PROC_READY;
+      queueEnqueue(ready_queue, reader);
+   }
+   TracePrintf(0, "TtyTrapReceiveHandler: Terminal tty_id %d now has only %d bytes left after processing.\n", terminal->tty_id, terminal->read_buffer_len);
 
 }
 
