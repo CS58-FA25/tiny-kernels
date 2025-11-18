@@ -12,7 +12,7 @@ int Brk(void *addr) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
         return ERROR;
     }
-    
+    TracePrintf(0, "current user heap brk before brk is %u\n", current_process->user_heap_end_vaddr);
     unsigned int aligned_addr = UP_TO_PAGE((unsigned int) addr);
     unsigned int aligned_user_heap_brk = UP_TO_PAGE(current_process->user_heap_end_vaddr);
     
@@ -54,6 +54,7 @@ int Brk(void *addr) {
     }
 
     current_process->user_heap_end_vaddr = (user_heap_brk_vpn << PAGESHIFT) + VMEM_1_BASE;
+    TracePrintf(0, "current user heap brk after brk is %u\n", current_process->user_heap_end_vaddr);
     return SUCCESS;
 
 }

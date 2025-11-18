@@ -56,7 +56,7 @@ void KernelTrapHandler(UserContext* ctx) {
             ctx->regs[0] = delay_result;
             break;
         case YALNIX_BRK:
-            TracePrintf(TRAP_TRACE_LEVEL, "Executing Brk syscall for process PID %d\n", current_process->pid);
+            TracePrintf(0, "Executing Brk syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             
             void *addr = (void *)ctx->regs[0];
@@ -136,6 +136,7 @@ void DiskTrapHandler(UserContext* ctx) {
 
 void MemoryTrapHandler(UserContext* ctx) {
    unsigned int fault_addr = (unsigned int)ctx->addr;
+   TracePrintf(0, "Fault address is %u\n", fault_addr);
    unsigned int user_heap_limit_addr = UP_TO_PAGE((unsigned int)(current_process->user_heap_end_vaddr));
    unsigned int user_stack_base_addr = DOWN_TO_PAGE((unsigned int)(current_process->user_stack_base_vaddr));
    if (ctx->code == YALNIX_MAPERR &&
@@ -151,6 +152,7 @@ void MemoryTrapHandler(UserContext* ctx) {
       }
       return;
    }
+   if (ctx -> code == YALNIX_MAPERR)
    if (ctx->code == YALNIX_MAPERR) {
       TracePrintf(0, "Kernel: Error, page is not mapped!\n");
       TracePrintf(0, "Kernel: Killing process PID %d.\n", current_process->pid);
@@ -164,12 +166,14 @@ void MemoryTrapHandler(UserContext* ctx) {
 }
 
 void IllegalInstructionTrapHandler(UserContext* ctx) {
-   // get the offending address, current pc
-   // report this information
-   //
-   // kill the process and inform the scheduler of this change
-   // ---> scheduler should be aware of upcoming deletion (post-completion)
+   void *pc = ctx->pc;
+   TracePrintf(0, "Kernel: Process PID %d tried executing an illegal instruction at pc 0x%x. Killing the process!\n", current_process->pid, pc);
+   Exit(ERROR); // Killing the process
+   
+   TracePrintf(0, "Error: Exit syscall returned in IllegalInstructionTrapHandler! This shouldn't happen. Halting the machine!\n");
+   Halt();
 }
+
 
 void TtyTrapTxHandler(UserContext* ctx) {
    // get whether this is a tx/rx operation
