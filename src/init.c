@@ -117,6 +117,8 @@ void InitializeInterruptVectorTable(void) {
     TRAP_VECTOR[TRAP_MEMORY] = &MemoryTrapHandler;
     TRAP_VECTOR[TRAP_TTY_RECEIVE] = &TtyTrapReceiveHandler;
     TRAP_VECTOR[TRAP_TTY_TRANSMIT] = &TtyTrapTransmitHandler;
+    TRAP_VECTOR[TRAP_MATH] = &MathTrapHandler;
+    TRAP_VECTOR[TRAP_ILLEGAL] = &IllegalInstructionTrapHandler;
     // TODO:
     // These are currently unimplemented (Checkpoint 2)
     // Add these in as they are implemented
@@ -127,7 +129,7 @@ void InitializeInterruptVectorTable(void) {
 void InitializeTerminals(void) {
     TracePrintf(0, "Kernel: Initializing terminals....\n");
     for (int i = 0; i < NUM_TERMINALS; i++) {
-
+        terminals[i].tty_id = i;
         terminals[i].blocked_readers = queueCreate();
         terminals[i].blocked_writers = queueCreate();
         if (terminals[i].blocked_readers == NULL || terminals[i].blocked_writers == NULL) {
