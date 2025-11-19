@@ -1,14 +1,34 @@
 #include "syscalls/tty.h"
 #include "kernel.h"
 
-// A note on TtyPrintf: I see that it's declared in the header that has
-// most of the syscalls listed
-//
-// However, I also see that it's something that is already implemented
-// in libyuser.a
-// So I didn't include it here
-// If I were to incluse it, it would end up being a wrapper function for TtyWrite that handles the arguments first
+
 terminal_t terminals[NUM_TERMINALS];
+
+int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len) {
+   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting to write %d bytes to terminal tty_id %d.\n", writer->pid, len, tty_id);
+   
+   terminal_t *terminal = &terminals[tty_id];
+   terminal->write_buffer = malloc(len);
+
+   if (terminal->write_buffer == NULL) {
+      TracePrintf(0, "BeginTtyTransmit: Failed to allocate memory for write buffer for terminal %d and writer process %d.\n", tty_id, writer->pid);
+      writer->user_context.regs[0] = ERROR;
+      return ERROR;
+   }
+
+   // Need to copy the contents of the buffer into the kernel array write_buffer in case a context switch happens
+   memcpy(terminal->write_buffer, buf, len);
+   terminal->write_buffer_len = len;
+   terminal->write_buffer_position = 0;
+   terminal->current_writer = writer;
+
+   // Beginning the first write transmit
+   int bytes_to_write = (len > TERMINAL_MAX_LINE) ? TERMINAL_MAX_LINE : len;
+   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting off by writing %d bytes into terminal tty_id %d.\n", writer->pid, bytes_to_write, tty_id);
+   TtyTransmit(tty_id, terminal->write_buffer, bytes_to_write);
+   terminal->write_buffer_position = bytes_to_write;
+   return SUCCESS;
+}
 
 int TtyRead(int tty_id, void *buf, int len) {
 
@@ -69,21 +89,64 @@ int TtyRead(int tty_id, void *buf, int len) {
 }
 
 int TtyWrite(int tty_id, void *buf, int len) {
-   // get tty object from a global tty device map
-   // if the tty does not exist (out of range), return error
-   // 
-   // check that TERMINAL_MAX_LINE is greater than len
-   // if len is greater than the max amount of data that can be written (`TERMINAL_MAX_LINE`), return error
-   //
-   // while the tty is being written to, limit tty access
-   // if the tty is in use, wait for the tty
-   // 
-   // write data of size `len` from `buf` into the tty, to be read by the call `TtyRead`
-   // (wait until tty write trap has returned success)
-   // return number of bytes written
-   //
-   // allow tty access for the next read/write call
-   //
-   // if write was unsuccessful, return error
-}
+   // Validate Arguments
+   if (tty_id < 0 || tty_id >= NUM_TERMINALS || buf == NULL || len <= 0) {
+      TracePrintf(0, "TtyWrite: Invalid arguments passed!\n");
+      return ERROR;
+   }
 
+   terminal_t *terminal = &terminals[tty_id];
+   PCB *curr = current_process;
+
+   // Acquire the lock
+   if (terminal->in_use) {
+      TracePrintf(0, "TtyWrite: Terminal %d busy. PID %d waiting for lock.\n", tty_id, curr->pid);
+      
+      queueEnqueue(terminal->blocked_writers, curr);
+      
+      // Block purely for the lock
+      curr->state = PROC_BLOCKED;
+      queueEnqueue(blocked_queue, curr);
+      
+      PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+      KernelContextSwitch(KCSwitch, curr, next);
+      // WAKE UP! If we get here, the trap handler dequeued us and woke us up
+      // It's our turn to write to the terminal
+   }
+
+   // Mark terminal as busy (if we just woke up, we take ownership now)
+   terminal->in_use = 1;
+
+   // Copy the data from the buffer into the kernel-allocated array in terminal->write_buffer
+   TracePrintf(0, "TtyWrite: PID %d acquired terminal %d. Starting copy.\n", curr->pid, tty_id);
+   
+   // Allocation and memcpy happen here
+   int result = BeginTtyTransmit(tty_id, curr, buf, len);
+   
+   if (result == ERROR) {
+      TracePrintf(0, "TtyWrite: Allocation failed for PID %d\n", curr->pid);
+      // Release the lock so other processes are not stuck forever
+      terminal->in_use = 0;
+      
+      // If others are waiting, wake the next one immediately
+      if (!is_empty(terminal->blocked_writers)) {
+          PCB *next_writer = queueDequeue(terminal->blocked_writers);
+          next_writer->state = PROC_READY;
+          queueEnqueue(ready_queue, next_writer);
+      }
+      return ERROR;
+   }
+
+   // Wait for I/O completion. We sleep again until the trap handler says "All chunks done".
+   TracePrintf(0, "TtyWrite: PID %d waiting for I/O completion...\n", curr->pid);
+   
+   curr->state = PROC_BLOCKED;
+   queueEnqueue(blocked_queue, curr);
+   
+   PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+   KernelContextSwitch(KCSwitch, curr, next);
+
+   // Done!! The trap handler woke us up.
+   TracePrintf(0, "TtyWrite: PID %d write complete.\n", curr->pid);
+   return len;
+}

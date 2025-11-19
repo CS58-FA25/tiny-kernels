@@ -197,15 +197,52 @@ void IllegalInstructionTrapHandler(UserContext* ctx) {
 
 
 void TtyTrapTransmitHandler(UserContext* ctx) {
-   // get whether this is a tx/rx operation
-   //
-   // if it's read, then a complete line of input is ready to be read
-   // inform anyone waiting on a line of input from the tty
-   //
-   // if it's a write, then a complete line of input has been written to the tty
-   // inform anyone waiting (such as a write handler) that this operation has succeeded
-   //
-   // update scheduler on fulfillment of requirements for waiters
+   int tty_id = ctx->code;
+   terminal_t *terminal = &terminals[tty_id];
+
+   // Do we still have more characters to write?
+   if (terminal->write_buffer_position < terminal->write_buffer_len) {
+      // Determine how many bytes we can write
+      TracePrintf(0, "TtyTrapTransmitHandler: Terminal tty_id %d still has %d bytes to write.\n", tty_id,(terminal->write_buffer_len - terminal->write_buffer_position));
+      int bytes_to_write = ((terminal->write_buffer_len - terminal->write_buffer_position) > TERMINAL_MAX_LINE) ? TERMINAL_MAX_LINE : (terminal->write_buffer_len - terminal->write_buffer_position);
+      
+      TracePrintf(0, "TtyTrapTansmitHanlder: Terminal tty_id %d writing the next %d bytes.\n", tty_id, bytes_to_write);
+      TtyTransmit(tty_id, terminal->write_buffer + terminal->write_buffer_position, bytes_to_write);
+      terminal->write_buffer_position += bytes_to_write;
+      return;
+
+   } else {
+      // If we are done with writing every thing into the terminal
+      // Do some cleanup
+      int bytes_written = terminal->write_buffer_len;
+      free(terminal->write_buffer);
+      terminal->write_buffer = NULL;
+      terminal->write_buffer_len = 0;
+      terminal->write_buffer_position = 0;
+
+      // Get the current writer
+      PCB *writer = terminal->current_writer;
+      terminal->current_writer = NULL;
+
+      // Put the writer process back in ready queue to be woken up and also set the return value appropirately
+      TracePrintf(0, "TtyTrapTransmitHandler: Waking writer process PID %d.", writer->pid);
+      writer->state = PROC_READY;
+      writer->user_context.regs[0] = bytes_written;
+      queueRemove(blocked_queue, writer);
+      queueEnqueue(ready_queue, writer);
+
+      // Now, we need to wake any other writers if they is any
+      if (!is_empty(terminal->blocked_writers)) {
+         PCB *next_writer = queueDequeue(terminal->blocked_writers);
+         
+         // Get bookkeeping stuff
+         void *buf = next_writer->user_context.regs[1];
+         int len = next_writer->user_context.regs[2];
+         
+      }
+
+
+   }
 }
 
 void TtyTrapReceiveHandler(UserContext* ctx) {

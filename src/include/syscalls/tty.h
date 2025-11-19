@@ -18,7 +18,7 @@ typedef struct terminal {
 
 extern terminal_t terminals[NUM_TERMINALS];
 
-int beginWriteTransmit(int tty_id, PCB *writing_process, void *buf, int len);
+int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len);
 int TtyRead(int tty_id, void *buf, int len);
 int TtyWrite(int tty_id, void *buf, int len);
 
