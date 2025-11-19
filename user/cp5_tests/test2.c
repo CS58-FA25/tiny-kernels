@@ -13,7 +13,6 @@
 /*
  * TestBasicWrite
  * Simply writes a short string to Terminal 0.
- * Verifies: Syscall dispatch, Basic StartTtyWrite.
  */
 void TestBasicWrite() {
     TracePrintf(0, "User: Starting Basic Write Test\n");
@@ -56,10 +55,8 @@ void TestBasicRead() {
  */
 void TestLongWrite() {
     TracePrintf(0, "User: Starting Long Write Test\n");
-    
-    // Assuming MAX_LINE is around 256, we write 600 bytes to force ~3 interrupts.
-    int size = 600;
-    char big_buf[601];
+    int size = 1024;
+    char big_buf[1025];
     
     // Fill buffer with a visible pattern
     for (int i = 0; i < size; i++) {
@@ -67,7 +64,7 @@ void TestLongWrite() {
     }
     big_buf[size] = '\n'; // End with newline
     
-    TracePrintf(0, "User: Writing %d bytes (Expect continuous output)...\n", size);
+    TracePrintf(0, "User: Writing %d bytes...\n", size);
     int rc = TtyWrite(0, big_buf, size);
     
     ASSERT_EQ(rc, size, "Long TtyWrite full length");
@@ -82,19 +79,19 @@ void TestBadArgs() {
     TracePrintf(0, "User: Starting Bad Arguments Test\n");
     char buf[10];
     
-    // 1. Invalid TTY ID
+    // Invalid TTY ID
     TracePrintf(0, "User: Testing Invalid TTY ID (NUM_TERMINALS)...\n");
     int rc = TtyWrite(NUM_TERMINALS, buf, 5);
     if (rc == ERROR) TracePrintf(0, "PASS: Invalid TTY ID rejected.\n");
     else TracePrintf(0, "FAIL: Invalid TTY ID accepted (rc=%d)\n", rc);
 
-    // 2. NULL Buffer
+    // NULL Buffer
     TracePrintf(0, "User: Testing NULL Buffer...\n");
     rc = TtyWrite(0, NULL, 5);
     if (rc == ERROR) TracePrintf(0, "PASS: NULL buffer rejected.\n");
     else TracePrintf(0, "FAIL: NULL buffer accepted (rc=%d)\n", rc);
 
-    // 3. Invalid Length
+    // Invalid Length
     TracePrintf(0, "User: Testing Negative Length...\n");
     rc = TtyWrite(0, buf, -5);
     if (rc == ERROR) TracePrintf(0, "PASS: Negative length rejected.\n");
@@ -105,8 +102,8 @@ void TestBadArgs() {
  * TestConcurrency
  * Forks a child process. Both Parent and Child try to write simultaneously.
  * Verifies: Terminal Locking (terminal->in_use) and Queueing (blocked_writers).
- * Output should NOT be interleaved characters (e.g., "PaChilrentd").
- * It should be full blocks (e.g., "Parent... Child...").
+ * Output should NOT be interleaved characters.
+ * It should be full blocks ("Parent... Child...").
  */
 void TestConcurrency() {
     TracePrintf(0, "User: Starting Concurrency Test\n");
@@ -114,19 +111,19 @@ void TestConcurrency() {
     int pid = Fork();
     if (pid == 0) {
         // Child Process
-        char *c_msg = "[CHILD] Writing line 1... (Waiting for lock?)\n";
+        char *c_msg = "CHILD: Writing line 1... (Waiting for lock?)\n";
         TtyWrite(0, c_msg, strlen(c_msg));
         
-        char *c_msg2 = "[CHILD] Writing line 2... (Holding lock?)\n";
+        char *c_msg2 = "CHILD: Writing line 2... (Holding lock?)\n";
         TtyWrite(0, c_msg2, strlen(c_msg2));
         
         Exit(0);
     } else {
         // Parent Process
-        char *p_msg = "[PARENT] Writing line A... (Waiting for lock?)\n";
+        char *p_msg = "PARENT: Writing line A... (Waiting for lock?)\n";
         TtyWrite(0, p_msg, strlen(p_msg));
         
-        char *p_msg2 = "[PARENT] Writing line B... (Holding lock?)\n";
+        char *p_msg2 = "PARENT: Writing line B... (Holding lock?)\n";
         TtyWrite(0, p_msg2, strlen(p_msg2));
         
         Wait(NULL);
@@ -134,9 +131,6 @@ void TestConcurrency() {
     }
 }
 
-/*
- * Main test runner.
- */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         TracePrintf(0, "Usage: test_tty [write | read | long | bad | concurrent]\n");

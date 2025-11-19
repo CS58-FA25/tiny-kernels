@@ -342,9 +342,9 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
 
 
 void trapHandlerHelper(void *arg, PCB *process) {
-   if (process->delay_ticks >= 0) {
+   if (process->delay_ticks > 0) {
       process->delay_ticks--;
-      if (process->delay_ticks == -1) {
+      if (process->delay_ticks == 0) {
             TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
             queueRemove(blocked_queue, process);
             process->state = PROC_READY;
