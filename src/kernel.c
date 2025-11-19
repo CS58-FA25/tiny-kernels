@@ -60,6 +60,9 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     TracePrintf(1, "Initializing the table of free pids to be used by processes....\n");
     InitializeProcTable();
 
+    TracePrintf(1, "Initializing the terminals...\n");
+    InitializeTerminals();
+
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
     WriteRegister(REG_PTBR0, (unsigned int)pt_region0);
@@ -104,44 +107,12 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL); // Flushing TLB from any stale mappings
 
     // Add the init process to the ready queue to be scheduled to run by the scheduler
-    queueEnqueue(ready_queue, init_proc);
-
+    queueEnqueue(ready_queue, init_proc); // pid 0 running and only pid 1 in there
     // Now copy kernel context into init process
     KernelContextSwitch(KCCopy, init_proc, NULL);
     memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
+    // Still pid 0 running and only pid 1 in there
     return;
-
-
-
-//     // Check if there are no arguments provided
-//     // If there are no arguments, lets create a *new* argument array
-//     if (!cmd_args || !*cmd_args) {
-// 	// _Cmd_Args = cmd_args at point of start
-// 	// Initialize a new array for hot-swapped arguments
-//         cmd_args = malloc(sizeof(char*) * 1);
-//         *cmd_args = "user/init"; // TODO: in CWD..
-//         TracePrintf(0, "NO ARGUMENTS PROVIDED!!! Set local `cmd_args` to \"init\".\n");
-//         TracePrintf(0, "did not touch global `_Cmd_Args`, do NOT expect a reflection in behavior.\n");
-//     }
-
-
-    
-//     int pidx = LoadProgramFromArguments(cmd_args);
-
-//     if (pidx < 0) {
-//         TracePrintf(0, "Failed to load program.\n");
-// 	// Error!!!! Let's jump out gracefully
-//     } else {
-// 	// DEBUG CODE WHILE THERE IS PROGRAM TRACKING! This doesn't need to exist later though
-// #ifdef DEBUG
-// 	Program* prog = GetProgramListing()->progs[pidx];
-//         TracePrintf(0, "Loaded program: %d (%p) (%s) \n", pidx, prog, prog->file);
-// 	// This run the program with the provided context
-// 	RunProgram(pidx, uctxt);
-// #endif
-//     }
-
-
 }
 
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
@@ -149,7 +120,7 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     PCB *next = (PCB *)next_pcb_p;
 
     if (curr) {
-	// If there is no current process, the context doesn't get saved :(
+    // If there is no current process, the context doesn't get saved :(
         memcpy(&(curr->kernel_context), kc_in, sizeof(KernelContext));
     }
 
@@ -187,6 +158,7 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
     pte_t *kstack_new = pcb_new->kstack;
     if (kstack_new == NULL) {
         kstack_new = InitializeKernelStackProcess();
+        pcb_new->kstack = kstack_new;
     }
 
     // Copying the contents of the current process kernel stack into the child process
@@ -321,29 +293,6 @@ int SetKernelBrk(void *addr_ptr)
     kernel_brk_page = (int) target_vpn;
     return 0;
 }
-
-/**
- * Description: Copy the contents of the frame pfn1 to the frame pfn2
-*/
-void CloneFrame(int pfn_from, int pfn_to) {
-    // Map a scratch page to pfn_to
-    int scratch_page = SCRATCH_ADDR >> PAGESHIFT;
-    pt_region0[scratch_page].pfn = pfn_to;
-    pt_region0[scratch_page].prot = PROT_READ | PROT_WRITE;
-    pt_region0[scratch_page].valid = 1;
-    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR); // In case the CPU already has a mapping in the TLB
-
-    // Copy the contents of pfn_from to the frame mapped by the page table to pfn_to
-    unsigned int pfn_from_addr = pfn_from << PAGESHIFT;
-    memcpy((void *)(SCRATCH_ADDR), (void *)pfn_from_addr, PAGESIZE);
-
-    // Now that the frame pfn_to has the contents of the frame pfn_from, unmap it from the scratch address in pt_region0
-    pt_region0[scratch_page].valid = 0;
-    pt_region0[scratch_page].prot = 0;
-    pt_region0[scratch_page].pfn = 0;
-    WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR);
-}
-
 
 int
 LoadProgram(char *name, char *args[], PCB *proc) 
@@ -608,7 +557,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
   /*
    * Zero out the uninitialized data area
    */
-  bzero(li.id_end, li.ud_end - li.id_end);
+  bzero((void *)li.id_end, li.ud_end - li.id_end);
 
 
   /*

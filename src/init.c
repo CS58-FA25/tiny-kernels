@@ -4,6 +4,7 @@
 #include "kernel.h"
 #include "mem.h"
 #include "traps/trap.h"
+#include "syscalls/tty.h"
 
 // Create trap handlers, set them all to not implemented.
 // Since this is still being developed and all of them might not be implemented,
@@ -36,7 +37,7 @@ static TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
 
 void InitializeVM() {
 
-    TracePrintf(0, "Building initial page tables");
+    TracePrintf(0, "InitializeVM: Building initial page tables\n");
     memset(pt_region0, 0, sizeof(pte_t) * NUM_PAGES_REGION0); // Makes the whole table clean and invalid
 
     int stack_limit_pfn = UP_TO_PAGE(KERNEL_STACK_LIMIT) >> PAGESHIFT;
@@ -66,7 +67,7 @@ void InitializeVM() {
     // Writing region 0 address into the corresponding register
     // Writing the number of entries of region0 into the corresponding register
 
-    TracePrintf(0, "VM initialization complete");
+    TracePrintf(0, "InitializeVM: VMinitialization complete\n");
 
 }
 
@@ -113,6 +114,11 @@ void InitializeProcTable(void) {
 void InitializeInterruptVectorTable(void) {
     TRAP_VECTOR[TRAP_KERNEL] = &KernelTrapHandler;
     TRAP_VECTOR[TRAP_CLOCK] = &ClockTrapHandler;
+    TRAP_VECTOR[TRAP_MEMORY] = &MemoryTrapHandler;
+    TRAP_VECTOR[TRAP_TTY_RECEIVE] = &TtyTrapReceiveHandler;
+    TRAP_VECTOR[TRAP_TTY_TRANSMIT] = &TtyTrapTransmitHandler;
+    TRAP_VECTOR[TRAP_MATH] = &MathTrapHandler;
+    TRAP_VECTOR[TRAP_ILLEGAL] = &IllegalInstructionTrapHandler;
     // TODO:
     // These are currently unimplemented (Checkpoint 2)
     // Add these in as they are implemented
@@ -120,26 +126,30 @@ void InitializeInterruptVectorTable(void) {
     WriteRegister(REG_VECTOR_BASE, (unsigned int) TRAP_VECTOR);
 }
 
-void InitializeTerminals() {
-    // TracePrintf(KERNEL_TRACE_LEVEL, "Initializing terminals...\n");
+void InitializeTerminals(void) {
+    TracePrintf(0, "Kernel: Initializing terminals....\n");
+    for (int i = 0; i < NUM_TERMINALS; i++) {
+        terminals[i].tty_id = i;
+        terminals[i].blocked_readers = queueCreate();
+        terminals[i].blocked_writers = queueCreate();
+        if (terminals[i].blocked_readers == NULL || terminals[i].blocked_writers == NULL) {
+            TracePrintf(0, "Kernel: Failed to allocate memory for one of the queues in the %dth terminal.\n", i);
+            Halt();
+        }
 
-    // for (int i = 0; i < NUM_TERMINALS; i++) {
-    //     terminals[i].id = i;
-    //     terminals[i].input_head = terminals[i].input_tail = 0;
-    //     terminals[i].output_head = terminals[i].output_tail = 0;
-    //     terminals[i].transmitting = 0;
-    //     terminals[i].waiting_read_proc = NULL;
-    //     terminals[i].waiting_write_proc = NULL;
+        terminals[i].read_buffer = malloc(TERMINAL_MAX_LINE);
+        if (terminals[i].read_buffer == NULL) {
+            TracePrintf(0, "Kernel: Failed to allocate memory for read buffer for the %dth terminal.\n", i);
+            Halt();
+        }
 
-    //     memset(terminals[i].input_buffer, 0, TERMINAL_BUFFER_SIZE);
-    //     memset(terminals[i].output_buffer, 0, TERMINAL_BUFFER_SIZE);
-    // }
-
-    // // Register the TTY interrupt handlers in the vector table
-    // vector_table[TRAP_TTY_RECEIVE]  = TTYReceiveHandler;
-    // vector_table[TRAP_TTY_TRANSMIT] = TTYTransmitHandler;
-
-    // WriteRegister(REG_VECTOR_BASE, (unsigned int) vector_table);
-
-    // TracePrintf(KERNEL_TRACE_LEVEL, "Terminal initialization complete.\n");
+        terminals[i].read_buffer_len = 0;
+        terminals[i].write_buffer = NULL;
+        terminals[i].write_buffer_position = 0;
+        terminals[i].write_buffer_len = 0;
+        terminals[i].current_writer = NULL;
+        terminals[i].in_use = 0;
+        TracePrintf(0, "Kernel: Succesfully initialized the %dth terminal.\n", i);
+    }
+    TracePrintf(0, "Kernel: Sucessfully initialized all terminals!\n");
 }

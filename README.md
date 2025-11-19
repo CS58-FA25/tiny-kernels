@@ -1,7 +1,5 @@
-# Checkpoint 3
-- Using late submission token!
-- Did we make the checkpoint? Yes we did! Only one issue to figure is that theres a mismatch between the pid printed out by `SysGetPid` and the one indicated by the hardware.
-
+# Checkpoint 5
+- We did make the checkpoint! Only issue is with the x11 graphical interfaces. They don't pop up at all? main issue is with this test `./yalnix ./user/cp5_tests/test2 read -lk 0`
 
 # Team
 - Isabella Fusari

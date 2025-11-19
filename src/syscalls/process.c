@@ -12,6 +12,7 @@ int Brk(void *addr) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
         return ERROR;
     }
+    TracePrintf(0, "current user heap brk before brk is %u\n", current_process->user_heap_end_vaddr);
     unsigned int aligned_addr = UP_TO_PAGE((unsigned int) addr);
     unsigned int aligned_user_heap_brk = UP_TO_PAGE(current_process->user_heap_end_vaddr);
     
@@ -53,51 +54,143 @@ int Brk(void *addr) {
     }
 
     current_process->user_heap_end_vaddr = (user_heap_brk_vpn << PAGESHIFT) + VMEM_1_BASE;
+    TracePrintf(0, "current user heap brk after brk is %u\n", current_process->user_heap_end_vaddr);
     return SUCCESS;
 
 }
 
 int Fork (void) {
-   // Create new process: pid, control block
-   // Copy current `UserContext` from current process memory to new process's memory
-   // Note: worth creating explicit memory for new process that parent does not touch
-   // Copy kernel stack from (`KernelContext`)
-   // If anything about fails, return -1 else
-   // Set return value for child to be 0 in `UserContext`
-   // Return child pid to parent
+    PCB *child = getFreePCB();   // Create new process: pid, process control block
+    if (child == NULL) {
+        TracePrintf(0, "Fork: Failed to find a free PCB for the child process!\n");
+        return ERROR;
+    }
+    PCB *parent = current_process;
+    child->ppid = parent->pid; // Mapping the pid of the parent to the ppid in the child
+
+    // Copy current `UserContext` from parent process PCB to child process's PCB
+    memcpy(&child->user_context, &parent->user_context, sizeof(UserContext));
+
+    // Now need to copy region1 pagetable
+    int result = CopyPT(parent, child);
+    if (result == ERROR) {
+        TracePrintf(0, "Fork: Failed to clone region 1 memory into child process!\n");
+        return ERROR;
+    }
+    // Copy heap brk and all the user stuff
+
+    // Copy kernel stack and kernel context from parent process into child process.
+    int rc = KernelContextSwitch(KCCopy, child, NULL); // Child process resumes executing from here. Caused so many issues
+
+    if (rc == -1) {
+        TracePrintf(0, "Fork: Kernel Context Switch failed while copying kernel stack!\n");
+        return ERROR;
+    }
+
+    // Because both parent and child execute this part after returning from context switch
+    if (current_process->pid == parent->pid) {
+        // If its the parent, set the child ready for scheduling
+        child->state = PROC_READY;
+        queueEnqueue(ready_queue, child);
+        queueEnqueue(parent->children_processes, child); // Also add it to the child processes queue of the parent
+        (&current_process->user_context)->regs[0] = child->pid; // Return value for Fork for the parent (child's pid)
+    } else {
+        (&current_process->user_context)->regs[0] = 0; // Return value for Fork for the child (0)
+        current_process->parent = parent;
+    }
+
+    return SUCCESS;
 }
 
 
-int Exec (char * file, char ** argvec) {
-   // Open file
-   // Read header, find entry
-   // Load file
-   // Create argc, argv
-   // Create process, place start to location of entry, load argc and argv into stack
-   // If anything above fails, return identifiable error for it
-   // Otherwise return ok
-   // Thought: If execution fails immediately, it could be worth returning that value instead
+int Exec(char *filename, char **argvec) {
+    PCB *curr = current_process;
+    int load_status = LoadProgram(filename, argvec, curr);
+    if (load_status == ERROR) {
+        TracePrintf(0, "Exec: Process PID %d failed to execute %s.\n", curr->pid, filename);
+        return ERROR;
+    }
+
+    TracePrintf(0, "Exec: Succeded in executing %s for process PID %d.\n", filename, curr->pid);
+    return SUCCESS;
 }
 
 void Exit (int status) {
-   // if this is pid 1, do not allow
-   // alternatively if this has no parent (ppid == -1, though this should mean this is also pid 1)
-   // if this is not the upmost parent, check if the parent is waiting for this process
-   // if so, inform parent at end
-   // if this parent has children, rehome them to the parent
-   // close open file descriptors
-   // get pcb, set exit status
-   // set status to zombie
-   // if this pcb has a pointer to the next item in the scheduler queue, inform the scheduler to go here next
-   // trigger scheduler
+    // Need to handle orphan processes somehow
+    PCB* curr = current_process;
+    if (curr->pid == 1) {
+        deletePCB(curr);
+        Halt();
+    }
+
+    queueEnqueue(zombie_queue, curr);
+    curr->exit_status = status;
+    curr->state = PROC_ZOMBIE;
+
+    PCB *parent = curr->parent;
+    if (parent && parent->waiting_for_child_pid) {
+        parent->state = PROC_READY;
+        parent->waiting_for_child_pid = 0;
+        queueEnqueue(ready_queue, parent);
+    }
+
+    TracePrintf(0, "Exiting process PID %d and switching to a different process...\n", curr->pid);
+    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    int rc = KernelContextSwitch(KCSwitch, curr, next);
+    if (rc == -1) {
+        TracePrintf(0, "Exit: Failed to switch context inside syscall Exit!\n");
+        Halt();
+    }
 }
 
 
 int Wait (int * status_ptr) {
-   // if the caller has no children, return error
-   // infinite loop, until you find a zombie child
-   // the infinite loop will require a pause in execution. however, if there is already a zombie child, then this returns immediately
-   // IF status_ptr is not null, this will be filled with child exit status
+    PCB *curr = current_process;
+    if (curr->children_processes->head == NULL) {
+        TracePrintf(0, "Wait: Error! No children to wait on!\n");
+        return ERROR;
+    }
+
+    QueueNode_t *zombie_node = zombie_queue->head;
+    while (zombie_node != NULL) {
+        PCB *zombie_process = zombie_node->process;
+        if (zombie_process->ppid == curr->pid) {
+            TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
+            if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
+            int pid = zombie_process->pid;
+            queueRemove(curr->children_processes, zombie_process);
+            queueRemove(zombie_queue, zombie_process);
+            deletePCB(zombie_process);
+            return pid;
+        }
+        zombie_node = zombie_node->next;
+    }
+
+    curr->state = PROC_BLOCKED;
+    curr->waiting_for_child_pid = 1;
+    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    int rc = KernelContextSwitch(KCSwitch, curr, next);
+    if (rc == -1) {
+        TracePrintf(0, "Wait: Failed to switch context inside syscall Wait!\n");
+        Halt();
+    }
+
+    zombie_node = zombie_queue->head;
+    while (zombie_node != NULL) {
+        PCB *zombie_process = zombie_node->process;
+        if (zombie_process->ppid == curr->pid) {
+            TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
+            if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
+            int pid = zombie_process->pid;
+            queueRemove(curr->children_processes, zombie_process);
+            queueRemove(zombie_queue, zombie_process);
+            deletePCB(zombie_process);
+            return pid;
+        }
+        zombie_node = zombie_node->next;
+    }
+    return ERROR;
+
 }
 
 int GetPid (void) {
@@ -121,13 +214,13 @@ int Delay(int clock_ticks) {
     // Change its status to blocked and add it to blocked queue
     curr->state = PROC_BLOCKED;
     queueEnqueue(blocked_queue, curr);
-
+    
     // Get the next ready process to run
     PCB *next_proc = queueDequeue(ready_queue);
     if (next_proc == NULL) {
         next_proc = idle_proc;
     }
-
+    
     TracePrintf(SYSCALLS_TRACE_LEVEL, "Delay: Process PID %d is delayed. Switching to process PID %d...\n", curr->pid, next_proc->pid);
     KernelContextSwitch(KCSwitch, curr, next_proc);
 

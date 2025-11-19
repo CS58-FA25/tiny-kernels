@@ -11,7 +11,6 @@
 #define KERNEL_STACK_SIZE (KERNEL_STACK_LIMIT - KERNEL_STACK_BASE)
 #define KSTACK_PAGES (KERNEL_STACK_MAXSIZE / PAGESIZE)
 #define KSTACK_START_PAGE (KERNEL_STACK_BASE >> PAGESHIFT)
-#define SCRATCH_ADDR (KERNEL_STACK_BASE - PAGESIZE)
 
 extern int kernel_brk_page;
 extern int text_section_base_page;
@@ -100,6 +99,7 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
  */
 KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused);
 
-void CloneFrame(int pfn_from, int pfn_to);
+
+int LoadProgram(char *name, char *args[], PCB *proc);
 
 #endif
