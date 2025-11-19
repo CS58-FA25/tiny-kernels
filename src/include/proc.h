@@ -59,6 +59,7 @@ typedef struct pcb {
     int delay_ticks;   /* How muany more ticks should this process be delayed for */
 
     /* optional: file descriptors, tty state, etc. (omitted for cp1) */
+    int tty_mode; // 0 = none, 1 = tx wait, 2 = rx wait
 } PCB;
 
 extern PCB *idle_proc; // Pointer to the idle process PCB

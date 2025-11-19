@@ -1,6 +1,9 @@
 #include <hardware.h>
 #include <yuser.h>
 
+/**
+ * Description: A program that executes forever. Tests Fork, GetPid, and Delay.
+*/
 int main(int argc, char** argv) {
     int pid = Fork();
     if (pid == 0) {

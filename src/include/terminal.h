@@ -31,7 +31,11 @@ static terminal_t* _terminals[NUM_TERMINALS] = {
 
 int InitializeTerminal(int tty);
 
-int WriteTerminal(int tty, void* data, int nbytes);
-int ReadTerminal(int tty, void* buf, int nbytes);
+int TerminalWrite(terminal_t* term, void* data, int nbytes);
+int TerminalRead(terminal_t* term, void* buf, int nbytes);
+
+int ValidateTerminal(terminal_t*);
+
+terminal_t* GetTerminal(unsigned int id);
 
 #endif // TERMINAL_H

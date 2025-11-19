@@ -1,4 +1,4 @@
-vi#include "hardware.h"
+#include "hardware.h"
 #include "include/mem.h"
 #include "include/kernel.h"
 

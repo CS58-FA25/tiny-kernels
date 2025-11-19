@@ -1,20 +1,21 @@
-// // This one get's a special file, because although it is under Process Coordination
-// // in Yalnix, I do not believe it is in Linux
-// // Also my mental association with brk is with sbrk and malloc, so this is just easier for
-// // peace of mind
+// This one get's a special file, because although it is under Process Coordination
+// in Yalnix, I do not believe it is in Linux
+// Also my mental association with brk is with sbrk and malloc, so this is just easier for
+// peace of mind
 #include "queue.h"
 #include "proc.h"
 #include "kernel.h"
-#include "syscalls.h"
-#include "hardware.h"
-#include "ykernel.h"
+#include "syscalls/process.h"
+#include <hardware.h>
+#include <ykernel.h>
 #include "mem.h"
 
 int Brk(void *addr) {
     if (addr == NULL) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
-        return -1;
+        return ERROR;
     }
+    TracePrintf(0, "current user heap brk before brk is %u\n", current_process->user_heap_end_vaddr);
     unsigned int aligned_addr = UP_TO_PAGE((unsigned int) addr);
     unsigned int aligned_user_heap_brk = UP_TO_PAGE(current_process->user_heap_end_vaddr);
 
@@ -33,7 +34,7 @@ int Brk(void *addr) {
         if (pfn == -1) {
             TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Failed to allocate frames to expand user heap for process PID %d!\n", current_process->pid);
             // TODO: If we already allocated frames for this, free them
-            return -1;
+            return ERROR;
         }
         // Map the frame
         pt_region1[user_heap_brk_vpn].pfn = pfn;
@@ -56,5 +57,7 @@ int Brk(void *addr) {
     }
 
     current_process->user_heap_end_vaddr = (user_heap_brk_vpn << PAGESHIFT) + VMEM_1_BASE;
-    return 0;
+    TracePrintf(0, "current user heap brk after brk is %u\n", current_process->user_heap_end_vaddr);
+    return SUCCESS;
+
 }

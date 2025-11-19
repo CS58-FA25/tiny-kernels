@@ -48,6 +48,8 @@ int RunProgram(int idx, UserContext* ctx) {
         return ERROR;
    }
 
+   char* argbuf;
+
    for (int idx = 0; idx < pcb->ptlr; idx++) {
        if (pcb->ptbr[idx].valid) {
            freeFrame(pcb->ptbr[idx].pfn);
@@ -64,7 +66,7 @@ int RunProgram(int idx, UserContext* ctx) {
    }
 
    char* cp = ((char *)VMEM_1_LIMIT) - size;
-   char** cpp = (char **) (((int) cp - ((program->argc + 3 + POST_ARGV_NULL_SPACE) * sizeof (void *))) & ~7);
+   char** cpp = (char **) (((int) cp - ((program->argc + 3 + POST_ARGV_NULL_SPACE) * sizeof (void*))) & ~7);
    char* sp = (caddr_t)cpp - INITIAL_STACK_FRAME_SIZE;
 
    int text_pg1 = (program->li.t_vaddr - VMEM_1_BASE) >> PAGESHIFT;
@@ -119,25 +121,7 @@ int RunProgram(int idx, UserContext* ctx) {
 
    bzero((void*) program->li.id_end, program->li.ud_end - program->li.id_end);
 
-   pcb->user_context.sp = sp;
-   sp = malloc(size);
-
-   cpp = cpp + 1;
-   *(int*)cpp = program->argc;
-   for (int i = 0; i < program->argc; i++) {
-      char* arg = program->argv[i];
-      int len = strlen(arg);
-      cpp = cpp + 1;
-      *cpp = cp;
-      memcpy(sp, arg, len);
-      memcpy(cp, sp, len);
-      cp = cp + len + 1;
-      sp = sp + len + 1;
-   }
-   cpp = cpp + 1;
-   *cpp = 0;
-   cpp = cpp + 1;
-   *cpp = 0;
+   argbuf = (char*) malloc(size);
 
    for (int pgno = 0; pgno < program->li.t_npg; pgno++) {
        int pfn = pcb->ptbr[pgno].pfn;
@@ -146,9 +130,32 @@ int RunProgram(int idx, UserContext* ctx) {
 
    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
 
+   memset(cpp, 0x00, VMEM_1_LIMIT - (int) cpp);
+
+   *(int*)cpp = program->argc;
+   cpp = cpp + 1;
+   for (int i = 0; i < program->argc; i++) {
+      char* arg = program->argv[i];
+      int len = strlen(arg);
+
+      *cpp = cp;
+
+      memcpy(argbuf, arg, len + 1);
+      memcpy(cp, argbuf, len + 1);
+
+      cp = cp + len + 1;
+      argbuf = argbuf + len + 1;
+      cpp = cpp + 1;
+   }
+
+   *cpp = 0;
+   cpp = cpp + 1;
+   *cpp = 0;
+
    memcpy(&(pcb->user_context), ctx, sizeof(UserContext));
 
    pcb->user_context.pc = (caddr_t) program->li.entry;
+   pcb->user_context.sp = sp;
    program->_pcb = pcb;
    TracePrintf(1, "Loaded program with PCB (%p) PC (0x%x) SP (%p)", pcb, pcb->user_context.pc, sp);
    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr);

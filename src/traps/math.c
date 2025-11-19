@@ -1,12 +1,13 @@
 #include <hardware.h>
 
+#include "syscalls/syscall.h"
+#include "proc.h"
+
 void MathTrapHandler(UserContext* ctx) {
-   // if it's possible to get information outside of offending address
-   // out of the context, then use this here to inform loggers/kernel/listeners/etc.
-   // of the exception
-   //
-   // kill the offending process
-   // notify scheduler that it was killed, do not switch back to it
-   // instead, scheduler should handle necessary cleanup (outside of initial cleanup handled here)
+   TracePrintf(0, "Kernel: Math trap in PID %d at user PC 0x%x. Terminating process.\n", current_process->pid, ctx->pc);
+   Exit(ERROR); // Killing the process
+
+   TracePrintf(0, "Error: Exit syscall returned in MathTrapHandler! This shouldn't happen. Halting the machine!\n");
+   Halt();
 }
 

@@ -1,8 +1,16 @@
-#include "src/include/proc.h"
-#include "src/include/kernel.h"
-#include "src/include/traps/trap.h"
+#include "traps/trap.h"
+#include "traps/memory.h"
 
-#include <hardware.h>
+#include "kernel.h"
+#include "proc.h"
+#include "queue.h"
+#include "kernel.h"
+#include "mem.h"
+#include "syscalls/process.h"
+#include "syscalls/tty.h"
+#include <hardware.h> 
+
+static void trapHandlerHelper(void *arg, PCB *process);
 
 void KernelTrapHandler(UserContext* ctx) {
     int syscall_number = ctx->code;
@@ -23,7 +31,7 @@ void KernelTrapHandler(UserContext* ctx) {
             ctx->regs[0] = delay_result;
             break;
         case YALNIX_BRK:
-            TracePrintf(TRAP_TRACE_LEVEL, "Executing Brk syscall for process PID %d\n", current_process->pid);
+            TracePrintf(0, "Executing Brk syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
 
             void *addr = (void *)ctx->regs[0];
@@ -78,6 +86,38 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = exec_result;
             break;
+         case YALNIX_TTY_WRITE:
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyWrite syscall for process PID %d\n", current_process->pid);
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int write_id = (int) ctx->regs[0];
+            void* write_buf = (void*) ctx->regs[1];
+            int write_len = (int) ctx->regs[2];
+            // The result here isn't important enough to crash with that operation.
+            int write_result = TtyWrite(write_id, write_buf, write_len);
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = write_result;
+            break;
+         case YALNIX_TTY_READ:
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyRead syscall for process PID %d\n", current_process->pid);
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int read_id = (int) ctx->regs[0];
+            void* read_buf = (void*) ctx->regs[1];
+            int read_len = (int) ctx->regs[2];
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = TtyRead(read_id, read_buf, read_len);
+            break;
     }
 
+}
+
+void trapHandlerHelper(void *arg, PCB *process) {
+   if (process->delay_ticks >= 0) {
+      process->delay_ticks--;
+      if (process->delay_ticks == -1) {
+            TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
+            queueRemove(blocked_queue, process);
+            process->state = PROC_READY;
+            queueEnqueue(ready_queue, process);
+         }
+   }
 }
