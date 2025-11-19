@@ -85,9 +85,20 @@ int TerminalRead(terminal_t* term, void* buf, int nbytes) {
           available = tail - head;
        }
 
+       if (available == 0) {
+            /* nothing to read: block until TtyTrapRxHandler fills buffer */
+          term->waiting_read_proc = current_process;
+          current_process->state  = PROC_BLOCKED;
+          if (!is_in_queue(blocked_queue, current_process)) {
+             queueEnqueue(blocked_queue, current_process);
+          }
+          continue;
+       }
+
+       int remaining = nbytes - read;
        int todo = available;
-       if (available > nbytes) {
-          todo = nbytes;
+       if (todo > remaining) {
+          todo = remaining;
        } 
        
        // Circular read

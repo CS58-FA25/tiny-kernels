@@ -46,9 +46,23 @@ void TtyTrapRxHandler(UserContext* ctx) {
    }
 
    TracePrintf(TRAP_TRACE_LEVEL, "Starting to send data to terminal id: %d\n", tty);
-   char buf[TERMINAL_MAX_LINE];
 
-   TtyReceive(tty, buf, TERMINAL_MAX_LINE);
+   char buf[TERMINAL_MAX_LINE];
+   int nbytes = TtyReceive(tty, buf, TERMINAL_MAX_LINE);
+   if (nbytes <= 0) {
+       // error
+       return;
+   }
+
+   for (int i = 0; i < nbytes; i++) {
+       term->input_buffer[term->input_tail] = buf[i];
+       term->input_tail = (term->input_tail + 1) % TERMINAL_BUFFER_SIZE;
+
+       if (term->input_tail == term->input_head) {
+           term->input_head = (term->input_head + 1) % TERMINAL_BUFFER_SIZE;
+       }
+   }
+
 
    if (term->waiting_read_proc) {
       _WakeProc(term->waiting_read_proc);
