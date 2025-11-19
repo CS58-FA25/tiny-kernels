@@ -115,6 +115,8 @@ void InitializeInterruptVectorTable(void) {
     TRAP_VECTOR[TRAP_KERNEL] = &KernelTrapHandler;
     TRAP_VECTOR[TRAP_CLOCK] = &ClockTrapHandler;
     TRAP_VECTOR[TRAP_MEMORY] = &MemoryTrapHandler;
+    TRAP_VECTOR[TRAP_TTY_RECEIVE] = &TtyTrapReceiveHandler;
+    TRAP_VECTOR[TRAP_TTY_TRANSMIT] = &TtyTrapTransmitHandler;
     // TODO:
     // These are currently unimplemented (Checkpoint 2)
     // Add these in as they are implemented
