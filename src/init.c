@@ -4,6 +4,7 @@
 #include "kernel.h"
 #include "mem.h"
 #include "traps/trap.h"
+#include "syscalls/tty.h"
 
 // Create trap handlers, set them all to not implemented.
 // Since this is still being developed and all of them might not be implemented,
@@ -121,26 +122,30 @@ void InitializeInterruptVectorTable(void) {
     WriteRegister(REG_VECTOR_BASE, (unsigned int) TRAP_VECTOR);
 }
 
-void InitializeTerminals() {
-    // TracePrintf(KERNEL_TRACE_LEVEL, "Initializing terminals...\n");
+void InitializeTerminals(void) {
+    TracePrintf(0, "Kernel: Initializing terminals....\n");
+    for (int i = 0; i < NUM_TERMINALS; i++) {
 
-    // for (int i = 0; i < NUM_TERMINALS; i++) {
-    //     terminals[i].id = i;
-    //     terminals[i].input_head = terminals[i].input_tail = 0;
-    //     terminals[i].output_head = terminals[i].output_tail = 0;
-    //     terminals[i].transmitting = 0;
-    //     terminals[i].waiting_read_proc = NULL;
-    //     terminals[i].waiting_write_proc = NULL;
+        terminals[i].blocked_readers = queueCreate();
+        terminals[i].blocked_writers = queueCreate();
+        if (terminals[i].blocked_readers == NULL || terminals[i].blocked_writers == NULL) {
+            TracePrintf(0, "Kernel: Failed to allocate memory for one of the queues in the %dth terminal.\n", i);
+            Halt();
+        }
 
-    //     memset(terminals[i].input_buffer, 0, TERMINAL_BUFFER_SIZE);
-    //     memset(terminals[i].output_buffer, 0, TERMINAL_BUFFER_SIZE);
-    // }
+        terminals[i].read_buffer = malloc(TERMINAL_MAX_LINE);
+        if (terminals[i].read_buffer == NULL) {
+            TracePrintf(0, "Kernel: Failed to allocate memory for read buffer for the %dth terminal.\n", i);
+            Halt();
+        }
 
-    // // Register the TTY interrupt handlers in the vector table
-    // vector_table[TRAP_TTY_RECEIVE]  = TTYReceiveHandler;
-    // vector_table[TRAP_TTY_TRANSMIT] = TTYTransmitHandler;
-
-    // WriteRegister(REG_VECTOR_BASE, (unsigned int) vector_table);
-
-    // TracePrintf(KERNEL_TRACE_LEVEL, "Terminal initialization complete.\n");
+        terminals[i].read_buffer_len = 0;
+        terminals[i].write_buffer = NULL;
+        terminals[i].write_buffer_position = 0;
+        terminals[i].write_buffer_len = 0;
+        terminals[i].current_writer = NULL;
+        terminals[i].in_use = 0;
+        TracePrintf(0, "Kernel: Succesfully initialized the %dth terminal.\n", i);
+    }
+    TracePrintf(0, "Kernel: Sucessfully initialized all terminals!\n");
 }

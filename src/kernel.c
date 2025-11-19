@@ -60,6 +60,9 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     TracePrintf(1, "Initializing the table of free pids to be used by processes....\n");
     InitializeProcTable();
 
+    TracePrintf(1, "Initializing the terminals...\n");
+    InitializeTerminals();
+
     TracePrintf(1, "Initializing process queues (ready, blocked, zombie)....\n");
     InitializeProcQueues();
     WriteRegister(REG_PTBR0, (unsigned int)pt_region0);

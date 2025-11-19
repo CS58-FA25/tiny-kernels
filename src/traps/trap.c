@@ -10,6 +10,7 @@
 
 void trapHandlerHelper(void *arg, PCB *process);
 int growStack(unsigned int addr);
+int CheckBuffer(void *addr, int len);
 
 void ClockTrapHandler(UserContext* ctx) {
    // Checkpoint 2: Temporary code
@@ -41,7 +42,7 @@ void ClockTrapHandler(UserContext* ctx) {
 void KernelTrapHandler(UserContext* ctx) {
     int syscall_number = ctx->code;
     switch (syscall_number) {
-        case YALNIX_DELAY:
+        case YALNIX_DELAY: {
             TracePrintf(TRAP_TRACE_LEVEL, "Yalnix Delay Syscall Handler\n");
             TracePrintf(0, "process PID %d delaying for %d ticks\n", current_process->pid, ctx->regs[0]);
             int delay = ctx->regs[0];
@@ -56,7 +57,8 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = delay_result;
             break;
-        case YALNIX_BRK:
+        }
+        case YALNIX_BRK: {
             TracePrintf(0, "Executing Brk syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             
@@ -69,7 +71,8 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = brk_result;
             break;
-         case YALNIX_FORK:
+        }
+         case YALNIX_FORK: {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Fork syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             int fork_result = Fork();
@@ -79,7 +82,8 @@ void KernelTrapHandler(UserContext* ctx) {
             }
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             break;
-         case YALNIX_GETPID:
+         }
+         case YALNIX_GETPID: {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing GetPid syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             int pid_result = GetPid();
@@ -90,7 +94,8 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = pid_result;
             break;
-         case YALNIX_WAIT:
+         }
+         case YALNIX_WAIT: {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Wait syscall for process PID %d\n", current_process->pid);
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             int *status_ptr = (int *)ctx->regs[0];
@@ -98,12 +103,14 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = wait_pid;
             break;
-         case YALNIX_EXIT:
+         }
+         case YALNIX_EXIT: {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Exit syscall for process PID %d\n", current_process->pid);
             int exit_status = ctx->regs[0];
             Exit(exit_status);
             break;
-         case YALNIX_EXEC:
+         }
+         case YALNIX_EXEC: {
             TracePrintf(TRAP_TRACE_LEVEL, "Executing Exec syscall for process PID %d\n", current_process->pid);
             char *filename = (char *)ctx->regs[0];
             char **argvec = (char **)ctx->regs[1];
@@ -112,26 +119,61 @@ void KernelTrapHandler(UserContext* ctx) {
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = exec_result;
             break;
-         case YALNIX_TTY_READ:
-         TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyRead syscall for process PID %d\n", current_process->pid);
-         int tty_id = ctx->regs[0];
-         void *buf = (void *)ctx->regs[1]; // Probably need to check here if the buffer address is in region 1
-         int len = ctx->regs[2];
-        
-         PCB *curr = current_process;
-         memcpy(&curr->user_context, ctx, sizeof(UserContext));
-         int rc = TtyRead(tty_id, buf, len);
-         // Checking if we managed to read anything and save it in the kernel read_buf and then finally move it to the user space memory at address buf
-         if (curr->tty_kernel_read_buf != NULL) {
-            memcpy(buf, curr->tty_kernel_read_buf, curr->kernel_read_size);
-            free(curr->tty_kernel_read_buf);
-            curr->tty_kernel_read_buf = NULL;
-            curr->kernel_read_size = 0;
          }
+         case YALNIX_TTY_READ: {
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyRead syscall for process PID %d\n", current_process->pid);
+            int tty_id = ctx->regs[0];
+            void *buf = (void *)ctx->regs[1];
+            int len = ctx->regs[2];
 
-         memcpy(ctx, &curr->user_context, sizeof(UserContext));
-         ctx->regs[0] = rc;
-         break;
+            // Ensure pointer is in User Space
+            if (CheckBuffer(buf, len) == ERROR) {
+                TracePrintf(0, "Trap: Illegal memory access in TtyRead by PID %d\n", current_process->pid);
+                ctx->regs[0] = ERROR;
+                break;
+            }
+
+            // 2. Save Context (Crucial because TtyRead might block)
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+
+            // 3. Execute Logic
+            int rc = TtyRead(tty_id, buf, len);
+
+            // 4. Unpack Data (The "Backpack" Step)
+            // If TtyRead returned success, we might have data sitting in the kernel stash.
+            if (rc > 0 && current_process->tty_kernel_read_buf != NULL) {
+               memcpy(buf, current_process->tty_kernel_read_buf, current_process->kernel_read_size);
+               
+               // Cleanup the stash
+               free(current_process->tty_kernel_read_buf);
+               current_process->tty_kernel_read_buf = NULL;
+               current_process->kernel_read_size = 0;
+            }
+
+            // 5. Restore Context and Set Return Value
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_TTY_WRITE: {
+            TracePrintf(TRAP_TRACE_LEVEL, "Executing TtyWrite syscall for process PID %d\n", current_process->pid);
+            int tty_id = ctx->regs[0];
+            void *buf = (void *)ctx->regs[1];
+            int len = ctx->regs[2];
+
+            // Ensure we aren't printing kernel memory secrets
+            if (CheckBuffer(buf, len) == ERROR) {
+                TracePrintf(0, "Trap: Illegal memory access in TtyWrite by PID %d\n", current_process->pid);
+                ctx->regs[0] = ERROR;
+                break;
+            }
+
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = TtyWrite(tty_id, buf, len);
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
 
     }
 
@@ -221,27 +263,31 @@ void TtyTrapTransmitHandler(UserContext* ctx) {
       terminal->write_buffer_position = 0;
 
       // Get the current writer
-      PCB *writer = terminal->current_writer;
+      PCB *finished_writer = terminal->current_writer;
       terminal->current_writer = NULL;
 
-      // Put the writer process back in ready queue to be woken up and also set the return value appropirately
-      TracePrintf(0, "TtyTrapTransmitHandler: Waking writer process PID %d.", writer->pid);
-      writer->state = PROC_READY;
-      writer->user_context.regs[0] = bytes_written;
-      queueRemove(blocked_queue, writer);
-      queueEnqueue(ready_queue, writer);
-
-      // Now, we need to wake any other writers if they is any
-      if (!is_empty(terminal->blocked_writers)) {
-         PCB *next_writer = queueDequeue(terminal->blocked_writers);
-         
-         // Get bookkeeping stuff
-         void *buf = next_writer->user_context.regs[1];
-         int len = next_writer->user_context.regs[2];
-         
+      if (finished_writer != NULL) {
+         TracePrintf(0, "Trap: Waking finished writer PID %d.\n", finished_writer->pid);
+         finished_writer->state = PROC_READY;
+         finished_writer->user_context.regs[0] = bytes_written; // Set return value
+         queueRemove(blocked_queue, finished_writer);
+         queueEnqueue(ready_queue, finished_writer);
       }
 
+      // Now, we need to wake any other writers if they is any waiting processes
+      if (!is_empty(terminal->blocked_writers)) {
+         TracePrintf(0, "Trap: Waking next blocked writer for terminal %d.\n", tty_id);
+         PCB *next_writer = queueDequeue(terminal->blocked_writers);
+         
+         // Let's wake this process
+         next_writer->state = PROC_READY;
+         queueRemove(blocked_queue, next_writer);
+         queueEnqueue(ready_queue, next_writer);
 
+      } else {
+         TracePrintf(0, "Trap: Terminal %d is now free.\n", tty_id);
+         terminal->in_use = 0;
+      }
    }
 }
 
@@ -249,13 +295,13 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
    int tty_id = ctx->code;
    terminal_t *terminal = &terminals[tty_id];
 
-   int len = TtyReceive(terminal, terminal->read_buffer + terminal->read_buffer_len, TERMINAL_MAX_LINE - terminal->read_buffer_len);
+   int len = TtyReceive(tty_id, terminal->read_buffer + terminal->read_buffer_len, TERMINAL_MAX_LINE - terminal->read_buffer_len);
    terminal->read_buffer_len += len;
 
    TracePrintf(0, "TtyTrapReceiveHandler: Terminal tty_id %d now has %d bytes available for reading.\n", terminal->tty_id, terminal->read_buffer_len);
    TracePrintf(0, "TtyTrapReceiveHandler: Checking if there are any processes waiting to read from terminal tty_id %d...\n", terminal->tty_id);
 
-   if (!is_empty(terminal->blocked_readers)) {
+   while (!is_empty(terminal->blocked_readers) && terminal->read_buffer_len > 0) {
       PCB *reader = queueDequeue(terminal->blocked_readers);
       int bytes_to_read = (reader->tty_read_len < terminal->read_buffer_len) ? reader->tty_read_len : terminal->read_buffer_len;
       TracePrintf(0, "TtyTrapReceiveHandler: Process PID %d has woken up to read %d bytes!\n", reader->pid, bytes_to_read);
@@ -265,33 +311,33 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
          memcpy(kernel_buffer, terminal->read_buffer, bytes_to_read);
          reader->tty_kernel_read_buf = kernel_buffer;
          reader->kernel_read_size = bytes_to_read;
+         reader->user_context.regs[0] = bytes_to_read;
       } else {
          // In case the allocation failed. Was thinking of killing that process but no need for that
+         reader->user_context.regs[0] = 0;
          bytes_to_read = 0;
       }
-
       // Set return value to number of bytes read
       TracePrintf(0, "TtyTrapReceiveHandler: Process PID %d read %d bytes from terminal tty_id %d.\n", reader->pid, bytes_to_read, terminal->tty_id);
-      reader->user_context.regs[0] = bytes_to_read;
-
-      if (bytes_to_read < terminal->read_buffer_len) {
-         memmove(terminal->read_buffer, terminal->read_buffer + bytes_to_read, terminal->read_buffer_len - bytes_to_read);
-         terminal->read_buffer_len -= bytes_to_read;
-      } else {
-         // In case we read the whole data on the terminal
-         terminal->read_buffer_len = 0;
+      
+      // Shift terminal buffer
+      if (bytes_to_read > 0) {
+         if (bytes_to_read < terminal->read_buffer_len) {
+            memmove(terminal->read_buffer, terminal->read_buffer + bytes_to_read, terminal->read_buffer_len - bytes_to_read);
+            terminal->read_buffer_len -= bytes_to_read;
+         } else {
+            // In case we read the whole data on the terminal
+            terminal->read_buffer_len = 0;
+         }
       }
 
-      // Remove the reader from the blocked queues
+      // Remove the reader from the blocked queue
       queueRemove(blocked_queue, reader);
-      queueRemove(terminal->blocked_readers, reader);
 
       // Now put back this process into ready queue
       reader->state = PROC_READY;
       queueEnqueue(ready_queue, reader);
    }
-   TracePrintf(0, "TtyTrapReceiveHandler: Terminal tty_id %d now has only %d bytes left after processing.\n", terminal->tty_id, terminal->read_buffer_len);
-
 }
 
 
@@ -337,4 +383,14 @@ int growStack(unsigned int addr) {
    current_process->user_stack_base_vaddr = addr_aligned_to_page_base;
    TracePrintf(0, "Succesfully grew process PID %d stack to %u.\n", current_process->pid, addr);
    return SUCCESS;
+}
+
+
+int CheckBuffer(void *addr, int len) {
+    unsigned long start = (unsigned long)addr;
+    unsigned long end = start + len;
+    if (start < VMEM_1_BASE || end > VMEM_1_LIMIT) {
+        return ERROR;
+    }
+    return SUCCESS;
 }

@@ -32,7 +32,7 @@ int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len) {
 
 int TtyRead(int tty_id, void *buf, int len) {
 
-   if (tty_id < 0 || tty_id > NUM_TERMINALS || buf == NULL || len <= 0) {
+   if (tty_id < 0 || tty_id >= NUM_TERMINALS || buf == NULL || len <= 0) {
       TracePrintf(0, "TtyRead: Invalid arguments passed!\n");
       return ERROR;
    }
