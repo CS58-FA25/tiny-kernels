@@ -9,6 +9,9 @@ Cvar_t cvars[NUM_CVARS];
 int num_locks_active = 0;
 int num_cvars_active = 0;
 
+int ReclaimLockHelper(int id);
+int ReclaimCvarHelper(int id);
+
 int LockInit(int *lock_idp) {
    if (num_locks_active == NUM_LOCKS) {
       TracePrintf(0, "LockInit_ERROR: Can't initialize another lock. Already reached the maximum number of locks in use.\n");
@@ -133,14 +136,14 @@ int CvarInit (int * cvar_idp) {
    int id = CREATE_ID(CVAR_TYPE, index);
    *cvar_idp = id;
    cvars[index].id = id;
-   locks[index].is_active = 1;
+   cvars[index].is_active = 1;
    
    queue_t *waiting_processes = queueCreate();
    if (waiting_processes == NULL) {
       TracePrintf(0, "CvarInit_ERROR: Failed to allocate memory for the cvar waiting processes queue!\n");
       return ERROR;
    }
-   locks[index].waiting_processes = waiting_processes;
+   cvars[index].waiting_processes = waiting_processes;
 
    num_cvars_active++;
    return SUCCESS;
