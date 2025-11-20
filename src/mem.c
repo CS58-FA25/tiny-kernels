@@ -87,25 +87,6 @@ void UnmapRegion0(unsigned int vpn) {
     pt_region0[vpn].pfn   = 0;
 }
 
-// void CloneFrame(int pfn_src, int pfn_dst) {
-//     // Map a scratch page to pfn_dst
-//     int scratch_page = SCRATCH_ADDR >> PAGESHIFT;
-//     pt_region0[scratch_page].pfn = pfn_dst;
-//     pt_region0[scratch_page].prot = PROT_READ | PROT_WRITE;
-//     pt_region0[scratch_page].valid = 1;
-//     WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR); // In case the CPU already has a mapping in the TLB
-
-//     // Copy the contents of pfn_src to the frame mapped by the page table to pfn_dst
-//     unsigned int pfn_src_addr = pfn_src << PAGESHIFT;
-//     memcpy((void *)(SCRATCH_ADDR), (void *)pfn_src_addr, PAGESIZE);
-
-//     // Now that the frame pfn_dst has the contents of the frame pfn_src, unmap it from the scratch address in pt_region0
-//     pt_region0[scratch_page].valid = 0;
-//     pt_region0[scratch_page].prot = 0;
-//     pt_region0[scratch_page].pfn = 0;
-//     WriteRegister(REG_TLB_FLUSH, SCRATCH_ADDR);
-// }
-
 void CloneFrame(int pfn_src, int pfn_dst) {
     // 1. Get VPNs for both scratch pages
     int scratch_vpn_dst = SCRATCH_ADDR_DST >> PAGESHIFT;

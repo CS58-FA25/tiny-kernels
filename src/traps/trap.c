@@ -8,37 +8,41 @@
 #include <hardware.h> 
 #include "syscalls/tty.h"
 
-void trapHandlerHelper(void *arg, PCB *process);
+/* ========= Forward Declarations of helper functions ========= */
+void ClockTrapHandlerHelper(void *arg, PCB *process);
 int growStack(unsigned int addr);
 int CheckBuffer(void *addr, int len);
+/* ========= End of forward Declarations of Helpers ========= */
 
+/**
+ * ======== ClockTrapHandler =======
+ * See trap.h for more details
+*/
 void ClockTrapHandler(UserContext* ctx) {
-   // Checkpoint 2: Temporary code
-   TracePrintf(0, "[CLOCK_TRAP] Clock trap triggered. Ticks: 0x%d\n", (int32_t)(tick_count));
+   TracePrintf(0, "ClockTrapHandler: Clock trap triggered. Ticks: %d\n", (int32_t)(tick_count));
 
    PCB *curr = current_process;
    memcpy(&curr->user_context, ctx, sizeof(UserContext));
-   queueIterate(blocked_queue, NULL, trapHandlerHelper);
+   queueIterate(blocked_queue, NULL, ClockTrapHandlerHelper);
 
-   // For cp3, lets swap out processes at every clock tick
-   PCB *next_proc = queueDequeue(ready_queue);
-
-   // If we found another ready process, switch out to it
-   if (next_proc) {
-      TracePrintf(0, "Switching from PID %d to PID %d\n", curr->pid, next_proc->pid);
-      
-      // If current was running, put it back in ready status and put in ready queue
-      if (curr->state == PROC_RUNNING && curr->pid != 0) {
-         curr->state = PROC_READY;
-         queueEnqueue(ready_queue, curr);
-      }
-      KernelContextSwitch(KCSwitch, curr, next_proc);
+   // Round-Robin scheduling
+   PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+   if (!(curr == idle_proc && next == idle_proc)) {
+      // Only switch if we are not switching from idle to idle
+      TracePrintf(0, "ClockTrapHandler: Switching from PID %d to PID %d\n", curr->pid, next->pid);
+      curr->state = PROC_READY;
+      queueEnqueue(ready_queue, curr);
+      KernelContextSwitch(KCSwitch, curr, next);
    }
-
 
    memcpy(ctx, &current_process->user_context, sizeof(UserContext));
 }
 
+
+/**
+ * ======== KernelTrapHandler =======
+ * See trap.h for more details
+*/
 void KernelTrapHandler(UserContext* ctx) {
     int syscall_number = ctx->code;
     switch (syscall_number) {
@@ -132,25 +136,16 @@ void KernelTrapHandler(UserContext* ctx) {
                 ctx->regs[0] = ERROR;
                 break;
             }
-
-            // 2. Save Context (Crucial because TtyRead might block)
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
-
-            // 3. Execute Logic
             int rc = TtyRead(tty_id, buf, len);
-
-            // 4. Unpack Data (The "Backpack" Step)
             // If TtyRead returned success, we might have data sitting in the kernel stash.
             if (rc > 0 && current_process->tty_kernel_read_buf != NULL) {
                memcpy(buf, current_process->tty_kernel_read_buf, current_process->kernel_read_size);
-               
                // Cleanup the stash
                free(current_process->tty_kernel_read_buf);
                current_process->tty_kernel_read_buf = NULL;
                current_process->kernel_read_size = 0;
             }
-
-            // 5. Restore Context and Set Return Value
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = rc;
             break;
@@ -179,6 +174,10 @@ void KernelTrapHandler(UserContext* ctx) {
 
 }
 
+/**
+ * ======== MathTrapHandler =======
+ * See trap.h for more details
+*/
 void MathTrapHandler(UserContext* ctx) {
    TracePrintf(0, "Kernel: Math trap in PID %d at user PC 0x%x. Terminating process.\n", current_process->pid, ctx->pc);
    Exit(ERROR); // Killing the process
@@ -188,15 +187,10 @@ void MathTrapHandler(UserContext* ctx) {
 }
 
 
-// Does nothing
-void NotImplementedTrapHandler(UserContext* ctx) {}
-
-
-void DiskTrapHandler(UserContext* ctx) {
-    NotImplementedTrapHandler(ctx);
-}
-
-
+/**
+ * ======== MemoryTrapHandler =======
+ * See trap.h for more details
+*/
 void MemoryTrapHandler(UserContext* ctx) {
    unsigned int fault_addr = (unsigned int)ctx->addr;
    TracePrintf(0, "Fault address is %u\n", fault_addr);
@@ -228,6 +222,11 @@ void MemoryTrapHandler(UserContext* ctx) {
    return;
 }
 
+
+/**
+ * ======== IllegalInstructionTrapHandler =======
+ * See trap.h for more details
+*/
 void IllegalInstructionTrapHandler(UserContext* ctx) {
    void *pc = ctx->pc;
    TracePrintf(0, "Kernel: Process PID %d tried executing an illegal instruction at pc 0x%x. Killing the process!\n", current_process->pid, pc);
@@ -238,6 +237,10 @@ void IllegalInstructionTrapHandler(UserContext* ctx) {
 }
 
 
+/**
+ * ======== TtyTrapTransmitHandler =======
+ * See trap.h for more details
+*/
 void TtyTrapTransmitHandler(UserContext* ctx) {
    int tty_id = ctx->code;
    terminal_t *terminal = &terminals[tty_id];
@@ -291,6 +294,10 @@ void TtyTrapTransmitHandler(UserContext* ctx) {
    }
 }
 
+/**
+ * ======== TtyTrapReceiveHandler =======
+ * See trap.h for more details
+*/
 void TtyTrapReceiveHandler(UserContext* ctx) {
    int tty_id = ctx->code;
    terminal_t *terminal = &terminals[tty_id];
@@ -340,8 +347,19 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
    }
 }
 
+/* =============== Start of Helper functions =============== */
 
-void trapHandlerHelper(void *arg, PCB *process) {
+/**
+ * Description: Helper function used in queueIterate to update the delay ticks for any process blocked
+ *              for calling Delay. If a process finished all of its delay ticks, the helper removes it
+ *              from blocked queue and puts it in ready queue
+ * ======= Parameters ======
+ * @param arg: NULL pointer.
+ * @param process: Pointer to the PCB of the process we are currently processing in the queue.
+ * ====== Return =======
+ * @return void
+*/
+void ClockTrapHandlerHelper(void *arg, PCB *process) {
    if (process->delay_ticks > 0) {
       process->delay_ticks--;
       if (process->delay_ticks == 0) {
@@ -353,6 +371,13 @@ void trapHandlerHelper(void *arg, PCB *process) {
    }
 }
 
+/**
+ * Description: Grows the stack of the current process to the given address.
+ * ======== Parameters ======
+ * @param addr: The address to which to expand the current process' stack
+ * ======== Return =======
+ * @return SUCCESS if growth succedded, KILL otherwise
+*/
 int growStack(unsigned int addr) {
    unsigned int addr_aligned_to_page_base = DOWN_TO_PAGE(addr);
    unsigned int stack_base_aligned_to_page_base = DOWN_TO_PAGE((unsigned int)(current_process->user_stack_base_vaddr));
@@ -385,7 +410,14 @@ int growStack(unsigned int addr) {
    return SUCCESS;
 }
 
-
+/**
+ * Description: Checks if a user-space buffer lies within region 1 of the pagetable.
+ * ======= Parameters ======
+ * @param addr: Pointer to the start of the buffer.
+ * @param len: Length of the buffer.
+ * ======= Returns =====
+ * @return SUCCESS if true, ERROR otherwise
+*/
 int CheckBuffer(void *addr, int len) {
     unsigned long start = (unsigned long)addr;
     unsigned long end = start + len;
@@ -393,4 +425,16 @@ int CheckBuffer(void *addr, int len) {
         return ERROR;
     }
     return SUCCESS;
+}
+
+/* =============== End of Helper functions =============== */
+
+
+/* ========= Unimplemented trap handlers =========== */
+// Does nothing
+void NotImplementedTrapHandler(UserContext* ctx) {}
+
+
+void DiskTrapHandler(UserContext* ctx) {
+    NotImplementedTrapHandler(ctx);
 }
