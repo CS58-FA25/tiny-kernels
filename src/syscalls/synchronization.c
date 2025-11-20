@@ -6,11 +6,15 @@
 
 Lock_t locks[NUM_LOCKS];
 Cvar_t cvars[NUM_CVARS];
+Pipe_t pipes[NUM_PIPES];
+
 int num_locks_active = 0;
 int num_cvars_active = 0;
+int num_pipes_active = 0;
 
 int ReclaimLockHelper(int id);
 int ReclaimCvarHelper(int id);
+int ReclaimPipeHelper(int id);
 
 int LockInit(int *lock_idp) {
    if (num_locks_active == NUM_LOCKS) {
@@ -118,6 +122,187 @@ int Release (int lock_id) {
    }
    return SUCCESS;
 }
+
+/* ============ Pipes ============ */
+
+int PipeInit (int * pipe_idp) {
+   if (num_pipes_active == NUM_PIPES) {
+      TracePrintf(0, "PipeInit_ERROR: Can't initialize another Pipe. Already reached the maximum number of pipes in use.\n");
+      return ERROR;
+   }
+   
+   // Look for a free pipe to use
+   int index = -1;
+   for (int i = 0; i < NUM_PIPES; i++) {
+      if (pipes[i].is_active == 0) {
+         index = i;
+         break;
+      }
+   }
+
+   // Once we find a free pipe, we create an id and save its value at the memory address pointed at by pipe_idp
+   int pipe_id = CREATE_ID(PIPE_TYPE, index);
+   *pipe_idp = pipe_id;
+
+   // Initializing the pipe
+   pipes[index].id = pipe_id;
+   pipes[index].is_active = 1;
+   pipes[index].len = 0;
+
+   // Initializing blocking queues
+   queue_t *waiting_writers = queueCreate();
+   queue_t *waiting_readers = queueCreate();
+   if (waiting_writers == NULL || waiting_readers == NULL) {
+      TracePrintf(0, "PipeInit_ERROR: Failed to allocate memory for queues for pipe %d!\n", pipe_id);
+      return ERROR;
+   }
+   
+   // Saving the queues pointers
+   pipes[index].waiting_writers = waiting_writers;
+   pipes[index].waiting_readers = waiting_readers;
+
+   num_pipes_active++;
+   return SUCCESS;
+}
+
+int PipeRead(int pipe_id, void *buf, int len) {
+   int pipe_idx = GET_INDEX(pipe_id);
+
+   // routine validating arguments
+   if (GET_TYPE(pipe_id) != PIPE_TYPE || pipe_idx < 0 || pipe_idx > NUM_PIPES) {
+      TracePrintf(0, "PipeRead_ERROR: Invalid pipe ID %d!\n", pipe_id);
+      return ERROR;
+   }
+   if (!pipes[pipe_idx].is_active) {
+      TracePrintf(0, "PipeRead_ERROR: Pipe %d hasn't been initialized!\n", pipe_id);
+      return ERROR;
+   }
+   if (buf == NULL || len <= 0) {
+      TracePrintf(0, "PipeRead_ERROR: Invalid arugments passed into PipeRead for pipe %d!\n", pipe_id);
+      return ERROR;
+   }
+
+   Pipe_t *pipe = &pipes[pipe_idx];
+   PCB *curr = current_process;
+   while (pipe->len == 0) {
+      TracePrintf(0, "PipeRead: Pipe %d is empty. Putting process PID %d to sleep!\n", pipe->id, curr->pid);
+
+      // There's nothing to read in the pipe. Put the process to sleep and put it on the waiting queue
+      queueEnqueue(pipe->waiting_readers, curr);
+
+      // Block it
+      curr->state = PROC_BLOCKED;
+      queueEnqueue(blocked_queue, curr);
+
+      // Dispatch the next ready process of the idle process
+      PCB * next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+      KernelContextSwitch(KCSwitch, curr, next);
+
+      // Got woken up by a writer who finished writing....
+      TracePrintf(0, "PipeRead: Process PID %d woken up to read pipe %d. Checking if there are any bytes to read....\n", current_process->pid, pipe->id);
+
+      // While loop beacuase it's possible that another process already consumed the buffer.
+   }
+
+   // Awesome, now we are sure that there is some data to read from the buffer
+   int bytes_to_read = (len >= pipe->len) ? pipe->len : len;
+   TracePrintf(0, "PipeRead: Process PID %d reading %d bytes from pipe %d!\n", curr->pid, bytes_to_read, pipe->id);
+
+   // Copy the data into buffer
+   memcpy(buf, pipe->read_buffer, bytes_to_read);
+   if (bytes_to_read < pipe->len) {
+      memmove(pipe->read_buffer, pipe->read_buffer + bytes_to_read, pipe->len - bytes_to_read); // Shift
+   }
+   pipe->len -= bytes_to_read;
+
+   // Wake up all waiting writers (It's kind of inefficient?)
+   while (!is_empty(pipe->waiting_writers)) {
+      PCB *waiting_writer = queueDequeue(pipe->waiting_writers);
+
+      // Unblock it and add it to ready queue
+      waiting_writer->state = PROC_READY;
+      queueRemove(blocked_queue, waiting_writer);
+      queueEnqueue(ready_queue, waiting_writer);
+   }
+
+   return bytes_to_read;
+}
+
+int PipeWrite(int pipe_id, void *buf, int len) {
+   int pipe_idx = GET_INDEX(pipe_id);
+
+   // validating arguments
+   if (GET_TYPE(pipe_id) != PIPE_TYPE || pipe_idx < 0 || pipe_idx >= NUM_PIPES) {
+      TracePrintf(0, "PipeWrite_ERROR: Invalid pipe ID %d!\n", pipe_id);
+      return ERROR;
+   }
+   if (!pipes[pipe_idx].is_active) {
+      TracePrintf(0, "PipeWrite_ERROR: Pipe %d hasn't been initialized!\n", pipe_id);
+      return ERROR;
+   }
+   if (buf == NULL || len < 0) {
+      TracePrintf(0, "PipeWrite_ERROR: Invalid arguments!\n");
+      return ERROR; 
+   }
+
+   Pipe_t *pipe = &pipes[pipe_idx];
+   PCB *curr = current_process;
+   char *user_buffer = (char *)buf;
+   int total_written = 0;
+
+   // The chunking loop
+   while (total_written < len) {
+      
+      // free space in the buffer currently available to write
+      int free_space = PIPE_BUFFER_LEN - pipe->len;
+      // if buffer is full just block
+      if (free_space == 0) {
+         TracePrintf(0, "PipeWrite: Pipe %d full. PID %d sleeping.\n", pipe->id, curr->pid);
+         queueEnqueue(pipe->waiting_writers, curr);
+         
+         // Block
+         curr->state = PROC_BLOCKED;
+         queueEnqueue(blocked_queue, curr);
+
+         // Dipsatch next ready process or idle
+         PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+         KernelContextSwitch(KCSwitch, curr, next);
+
+         // When we wake up, we continue the loop to recalculate free_space
+         TracePrintf(0, "PipeWrite: Process PID %d woken up by a reader to write into pipe %d. Checking if there's any free space to write...\n", curr->pid, pipe->id);
+         continue; 
+      }
+
+      // writing a chunk
+      int bytes_left = len - total_written;
+      int chunk_size = (bytes_left < free_space) ? bytes_left : free_space;
+
+      TracePrintf(0, "PipeWrite: PID %d writing chunk of %d bytes. Total written so far: %d out of %d\n", curr->pid, chunk_size, total_written, len);
+
+      // FIFO, append to the buffer. Also, adjust pointer of buf to point to the start of the new chunk
+      memcpy(pipe->read_buffer + pipe->len, user_buffer + total_written, chunk_size);
+
+      // Updating state
+      pipe->len += chunk_size;
+      total_written += chunk_size;
+
+      // Wake up all readers (this is highly inefficient again)
+      if (!is_empty(pipe->waiting_readers)) {
+         TracePrintf(0, "PipeWrite: Waking up waiting readers.\n");
+         while (!is_empty(pipe->waiting_readers)) {
+            PCB *reader = queueDequeue(pipe->waiting_readers);
+            reader->state = PROC_READY;
+            queueRemove(blocked_queue, reader);
+            queueEnqueue(ready_queue, reader);
+         }
+      }
+   }
+
+   return total_written;
+}
+
+
+/* =========== Condition Variables ============== */
 
 int CvarInit (int * cvar_idp) {
    if (num_cvars_active == NUM_CVARS) {
@@ -249,6 +434,9 @@ int Reclaim (int id) {
       case CVAR_TYPE:
          rc = ReclaimCvarHelper(id);
          break;
+      case PIPE_TYPE:
+         rc = ReclaimPipeHelper(id);
+         break;
    }
    return rc;
 }
@@ -305,6 +493,34 @@ int ReclaimCvarHelper(int id) {
    num_cvars_active--;
    return SUCCESS;
 
+}
+
+int ReclaimPipeHelper(int id) {
+   int pipe_idx = GET_INDEX(id);
+   PCB *curr = current_process;
+   if (pipe_idx >= NUM_PIPES || pipe_idx < 0) {
+      TracePrintf(0, "Reclaim_ERROR: A pipe with id %d doesn't exist!\n", id);
+      return ERROR;
+   }
+
+   Pipe_t *pipe =  &pipes[pipe_idx];
+   if (!pipe->is_active) {
+      TracePrintf(0, "Reclaim_ERROR: The pipe with id %d hasn't been initialized yet!\n", id);
+      return ERROR;
+   }
+   if (!is_empty(pipe->waiting_readers) || !is_empty(pipe->waiting_writers) || pipe->len > 0) {
+      TracePrintf(0, "Reclaim_ERROR: The pipe with id %d is busy! Can't reclaim now.\n", id);
+      return ERROR;
+   }
+
+   // Clean Up
+   queueDelete(pipe->waiting_readers);
+   queueDelete(pipe->waiting_writers);
+   pipe->waiting_readers = NULL;
+   pipe->waiting_writers = NULL;
+   pipe->is_active = 0;
+   num_pipes_active--;
+   return SUCCESS;
 }
 
 
