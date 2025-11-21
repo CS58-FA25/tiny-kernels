@@ -107,7 +107,7 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL); // Flushing TLB from any stale mappings
 
     // Add the init process to the ready queue to be scheduled to run by the scheduler
-    queueEnqueue(ready_queue, init_proc); // pid 0 running and only pid 1 in there
+    queue_enqueue(ready_queue, init_proc); // pid 0 running and only pid 1 in there
     // Now copy kernel context into init process
     KernelContextSwitch(KCCopy, init_proc, NULL);
     memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
@@ -178,7 +178,7 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
 
 void scheduler() {
     // while true:
-    //     next = queueDequeue(ready_queue)
+    //     next = queue_dequeue(ready_queue)
     //     if next == NULL:
     //         next = idle_pcb  // run idle if no ready processes
 

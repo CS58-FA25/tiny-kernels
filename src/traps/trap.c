@@ -49,15 +49,15 @@ void ClockTrapHandler(UserContext* ctx) {
 
    PCB *curr = current_process;
    memcpy(&curr->user_context, ctx, sizeof(UserContext));
-   queueIterate(blocked_queue, NULL, ClockTrapHandlerHelper);
+   queue_iterate(blocked_queue, NULL, ClockTrapHandlerHelper);
 
    // Round-Robin scheduling
-   PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+   PCB *next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
    if (!(curr == idle_proc && next == idle_proc)) {
       // Only switch if we are not switching from idle to idle
       TracePrintf(0, "ClockTrapHandler: Switching from PID %d to PID %d\n", curr->pid, next->pid);
       curr->state = PROC_READY;
-      queueEnqueue(ready_queue, curr);
+      queue_enqueue(ready_queue, curr);
       KernelContextSwitch(KCSwitch, curr, next);
    }
 
@@ -299,19 +299,19 @@ void TtyTrapTransmitHandler(UserContext* ctx) {
          TracePrintf(0, "Trap: Waking finished writer PID %d.\n", finished_writer->pid);
          finished_writer->state = PROC_READY;
          finished_writer->user_context.regs[0] = bytes_written; // Set return value
-         queueRemove(blocked_queue, finished_writer);
-         queueEnqueue(ready_queue, finished_writer);
+         queue_remove(blocked_queue, finished_writer);
+         queue_enqueue(ready_queue, finished_writer);
       }
 
       // Now, we need to wake any other writers if they is any waiting processes
       if (!is_empty(terminal->blocked_writers)) {
          TracePrintf(0, "Trap: Waking next blocked writer for terminal %d.\n", tty_id);
-         PCB *next_writer = queueDequeue(terminal->blocked_writers);
+         PCB *next_writer = queue_dequeue(terminal->blocked_writers);
          
          // Let's wake this process
          next_writer->state = PROC_READY;
-         queueRemove(blocked_queue, next_writer);
-         queueEnqueue(ready_queue, next_writer);
+         queue_remove(blocked_queue, next_writer);
+         queue_enqueue(ready_queue, next_writer);
 
       } else {
          TracePrintf(0, "Trap: Terminal %d is now free.\n", tty_id);
@@ -335,7 +335,7 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
    TracePrintf(0, "TtyTrapReceiveHandler: Checking if there are any processes waiting to read from terminal tty_id %d...\n", terminal->tty_id);
 
    while (!is_empty(terminal->blocked_readers) && terminal->read_buffer_len > 0) {
-      PCB *reader = queueDequeue(terminal->blocked_readers);
+      PCB *reader = queue_dequeue(terminal->blocked_readers);
       int bytes_to_read = (reader->tty_read_len < terminal->read_buffer_len) ? reader->tty_read_len : terminal->read_buffer_len;
       TracePrintf(0, "TtyTrapReceiveHandler: Process PID %d has woken up to read %d bytes!\n", reader->pid, bytes_to_read);
 
@@ -365,18 +365,18 @@ void TtyTrapReceiveHandler(UserContext* ctx) {
       }
 
       // Remove the reader from the blocked queue
-      queueRemove(blocked_queue, reader);
+      queue_remove(blocked_queue, reader);
 
       // Now put back this process into ready queue
       reader->state = PROC_READY;
-      queueEnqueue(ready_queue, reader);
+      queue_enqueue(ready_queue, reader);
    }
 }
 
 /* =============== Start of Helper functions =============== */
 
 /**
- * Description: Helper function used in queueIterate to update the delay ticks for any process blocked
+ * Description: Helper function used in queue_iterate to update the delay ticks for any process blocked
  *              for calling Delay. If a process finished all of its delay ticks, the helper removes it
  *              from blocked queue and puts it in ready queue
  * ======= Parameters ======
@@ -390,9 +390,9 @@ void ClockTrapHandlerHelper(void *arg, PCB *process) {
       process->delay_ticks--;
       if (process->delay_ticks == 0) {
             TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
-            queueRemove(blocked_queue, process);
+            queue_remove(blocked_queue, process);
             process->state = PROC_READY;
-            queueEnqueue(ready_queue, process);
+            queue_enqueue(ready_queue, process);
          }
    }
 }

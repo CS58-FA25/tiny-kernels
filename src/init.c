@@ -118,8 +118,8 @@ void InitializeTerminals(void) {
     TracePrintf(0, "Kernel: Initializing terminals....\n");
     for (int i = 0; i < NUM_TERMINALS; i++) {
         terminals[i].tty_id = i;
-        terminals[i].blocked_readers = queueCreate();
-        terminals[i].blocked_writers = queueCreate();
+        terminals[i].blocked_readers = queue_create();
+        terminals[i].blocked_writers = queue_create();
         if (terminals[i].blocked_readers == NULL || terminals[i].blocked_writers == NULL) {
             TracePrintf(0, "Kernel: Failed to allocate memory for one of the queues in the %dth terminal.\n", i);
             Halt();
@@ -147,25 +147,25 @@ void InitializeTerminals(void) {
  * See init.h for more details
 */
 void InitializeProcQueues(void) {
-    ready_queue = queueCreate();
+    ready_queue = queue_create();
     if (ready_queue == NULL) {
         TracePrintf(0, "ready_queue: Couldn't allocate memory for ready queue.\n");
         Halt();
     }
 
-    blocked_queue = queueCreate();
+    blocked_queue = queue_create();
     if (blocked_queue == NULL) {
         TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
         Halt();
     }
 
-    zombie_queue = queueCreate();
+    zombie_queue = queue_create();
     if (zombie_queue == NULL) {
         TracePrintf(0, "zombie_queue: Couldn't allocate memory for zombie queue.\n");
         Halt();
     }
 
-    waiting_parents = queueCreate();
+    waiting_parents = queue_create();
     if (waiting_parents == NULL) {
         TracePrintf(0, "waiting_parents: Couldn't allocate memory for waiting parents queue.\n");
         Halt();

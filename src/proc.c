@@ -61,7 +61,7 @@ PCB *AllocNewPCB() {
     process->next = NULL;
     process->prev = NULL;
     process->parent = NULL;
-    process->children_processes = queueCreate();
+    process->children_processes = queue_create();
     if (process->children_processes == NULL) {
         TracePrintf(0, "AllocNewPCB: Failed to create children queue.\n");
         free(process->ptbr);
@@ -120,10 +120,10 @@ void deletePCB(PCB *process) {
         Halt();
     }
     if (process->children_processes != NULL) {
-        queueIterate(process->children_processes, NULL, deletePCBHelper);
+        queue_iterate(process->children_processes, NULL, deletePCBHelper);
     }
     // Free up the queue created for children processes
-    queueDelete(process->children_processes);
+    queue_delete(process->children_processes);
 
     // Free memory allocated for region 1 (make sure we freed the frames used up)
     free(process->ptbr);

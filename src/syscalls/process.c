@@ -91,8 +91,8 @@ int Fork (void) {
     if (current_process->pid == parent->pid) {
         // If its the parent, set the child ready for scheduling
         child->state = PROC_READY;
-        queueEnqueue(ready_queue, child);
-        queueEnqueue(parent->children_processes, child); // Also add it to the child processes queue of the parent
+        queue_enqueue(ready_queue, child);
+        queue_enqueue(parent->children_processes, child); // Also add it to the child processes queue of the parent
         (&current_process->user_context)->regs[0] = child->pid; // Return value for Fork for the parent (child's pid)
     } else {
         (&current_process->user_context)->regs[0] = 0; // Return value for Fork for the child (0)
@@ -123,7 +123,7 @@ void Exit (int status) {
         Halt();
     }
 
-    queueEnqueue(zombie_queue, curr);
+    queue_enqueue(zombie_queue, curr);
     curr->exit_status = status;
     curr->state = PROC_ZOMBIE;
 
@@ -131,11 +131,11 @@ void Exit (int status) {
     if (parent && parent->waiting_for_child_pid) {
         parent->state = PROC_READY;
         parent->waiting_for_child_pid = 0;
-        queueEnqueue(ready_queue, parent);
+        queue_enqueue(ready_queue, parent);
     }
 
     TracePrintf(0, "Exiting process PID %d and switching to a different process...\n", curr->pid);
-    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    PCB *next = is_empty(ready_queue) ? idle_proc : queue_dequeue(ready_queue);
     int rc = KernelContextSwitch(KCSwitch, curr, next);
     if (rc == -1) {
         TracePrintf(0, "Exit: Failed to switch context inside syscall Exit!\n");
@@ -158,8 +158,8 @@ int Wait (int * status_ptr) {
             TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
             if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
             int pid = zombie_process->pid;
-            queueRemove(curr->children_processes, zombie_process);
-            queueRemove(zombie_queue, zombie_process);
+            queue_remove(curr->children_processes, zombie_process);
+            queue_remove(zombie_queue, zombie_process);
             deletePCB(zombie_process);
             return pid;
         }
@@ -168,7 +168,7 @@ int Wait (int * status_ptr) {
 
     curr->state = PROC_BLOCKED;
     curr->waiting_for_child_pid = 1;
-    PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+    PCB *next = is_empty(ready_queue) ? idle_proc : queue_dequeue(ready_queue);
     int rc = KernelContextSwitch(KCSwitch, curr, next);
     if (rc == -1) {
         TracePrintf(0, "Wait: Failed to switch context inside syscall Wait!\n");
@@ -182,8 +182,8 @@ int Wait (int * status_ptr) {
             TracePrintf(0, "Parent process PID %d reaping child zombie process PID %d\n", curr->pid, zombie_process->pid);
             if (status_ptr != NULL) *status_ptr = zombie_process->exit_status;
             int pid = zombie_process->pid;
-            queueRemove(curr->children_processes, zombie_process);
-            queueRemove(zombie_queue, zombie_process);
+            queue_remove(curr->children_processes, zombie_process);
+            queue_remove(zombie_queue, zombie_process);
             deletePCB(zombie_process);
             return pid;
         }
@@ -213,10 +213,10 @@ int Delay(int clock_ticks) {
 
     // Change its status to blocked and add it to blocked queue
     curr->state = PROC_BLOCKED;
-    queueEnqueue(blocked_queue, curr);
+    queue_enqueue(blocked_queue, curr);
     
     // Get the next ready process to run
-    PCB *next_proc = queueDequeue(ready_queue);
+    PCB *next_proc = queue_dequeue(ready_queue);
     if (next_proc == NULL) {
         next_proc = idle_proc;
     }

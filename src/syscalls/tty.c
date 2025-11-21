@@ -70,10 +70,10 @@ int TtyRead(int tty_id, void *buf, int len) {
    TracePrintf(0, "TtyRead: No data available to read for process PID %d at terminal tty_id %d. Blocking process.\n", curr->pid, terminal->tty_id);
    
    // Add it to queue of blocked readers for this terminal
-   queueEnqueue(terminal->blocked_readers, curr);
+   queue_enqueue(terminal->blocked_readers, curr);
 
    // Block the process
-   queueEnqueue(blocked_queue, curr);
+   queue_enqueue(blocked_queue, curr);
    curr->state = PROC_BLOCKED;
 
    // Store the buffer to copy to and also how many bytes needed to read in the process PCB for when the process is woken up
@@ -81,7 +81,7 @@ int TtyRead(int tty_id, void *buf, int len) {
    curr->tty_read_len = len;
 
    // Switch to idle or another process
-   PCB *next = (is_empty(ready_queue) == 1) ? idle_proc : queueDequeue(ready_queue);
+   PCB *next = (is_empty(ready_queue) == 1) ? idle_proc : queue_dequeue(ready_queue);
    KernelContextSwitch(KCSwitch, curr, next);
 
    TracePrintf(0, "TtyRead: process PID %d woken up.\n", curr->pid);
@@ -102,13 +102,13 @@ int TtyWrite(int tty_id, void *buf, int len) {
    if (terminal->in_use) {
       TracePrintf(0, "TtyWrite: Terminal %d busy. PID %d waiting for lock.\n", tty_id, curr->pid);
       
-      queueEnqueue(terminal->blocked_writers, curr);
+      queue_enqueue(terminal->blocked_writers, curr);
       
       // Block purely for the lock
       curr->state = PROC_BLOCKED;
-      queueEnqueue(blocked_queue, curr);
+      queue_enqueue(blocked_queue, curr);
       
-      PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+      PCB *next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
       KernelContextSwitch(KCSwitch, curr, next);
       // WAKE UP! If we get here, the trap handler dequeued us and woke us up
       // It's our turn to write to the terminal
@@ -130,9 +130,9 @@ int TtyWrite(int tty_id, void *buf, int len) {
       
       // If others are waiting, wake the next one immediately
       if (!is_empty(terminal->blocked_writers)) {
-          PCB *next_writer = queueDequeue(terminal->blocked_writers);
+          PCB *next_writer = queue_dequeue(terminal->blocked_writers);
           next_writer->state = PROC_READY;
-          queueEnqueue(ready_queue, next_writer);
+          queue_enqueue(ready_queue, next_writer);
       }
       return ERROR;
    }
@@ -141,9 +141,9 @@ int TtyWrite(int tty_id, void *buf, int len) {
    TracePrintf(0, "TtyWrite: PID %d waiting for I/O completion...\n", curr->pid);
    
    curr->state = PROC_BLOCKED;
-   queueEnqueue(blocked_queue, curr);
+   queue_enqueue(blocked_queue, curr);
    
-   PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+   PCB *next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
    KernelContextSwitch(KCSwitch, curr, next);
 
    // Done!! The trap handler woke us up.

@@ -100,7 +100,7 @@ void InitializeTerminals(void);
  * @brief Initializes the global process queues used by the scheduler.
  * ======================== Behavior ==========================
  * - Allocates and initializes the ready, blocked, and zombie queues.
- * - Each queue is created using `queueCreate()` and stored in global vars.
+ * - Each queue is created using `queue_create()` and stored in global vars.
  * ======================== Notes =============================
  * - Called once during kernel startup before any process is created.
  * - Halts the system if any allocation fails to prevent inconsistent state.

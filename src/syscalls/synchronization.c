@@ -37,7 +37,7 @@ int LockInit(int *lock_idp) {
    locks[index].locked = 0;
    locks[index].owner = NULL;
    
-   queue_t *waiting_processes = queueCreate();
+   queue_t *waiting_processes = queue_create();
    if (waiting_processes == NULL) {
       TracePrintf(0, "LockInit_ERROR: Failed to allocate memory for the lock waiting processes queue!\n");
       return ERROR;
@@ -65,14 +65,14 @@ int Acquire (int lock_id) {
    if (lock->locked) {
       TracePrintf(0, "Acquire: Lock %d is in use by process PID %d. Putting process PID %d to sleep for now.\n", lock_id, lock->owner->pid, curr->pid);
       // Put the current process in the waiting queue for this lock
-      queueEnqueue(lock->waiting_processes, curr);
+      queue_enqueue(lock->waiting_processes, curr);
 
       // Block the process
       curr->state = PROC_BLOCKED;
-      queueEnqueue(blocked_queue, curr);
+      queue_enqueue(blocked_queue, curr);
 
       // Switch to another available process until the lock is free
-      PCB *next = is_empty(ready_queue) ? idle_proc : queueDequeue(ready_queue);
+      PCB *next = is_empty(ready_queue) ? idle_proc : queue_dequeue(ready_queue);
       KernelContextSwitch(KCSwitch, curr, next);
 
       // If we get here, that means we got woken up by the trap handler
@@ -107,14 +107,14 @@ int Release (int lock_id) {
 
    // Before releasing, first check if there are any waiting processes and pass them the lock
    if(!is_empty(lock->waiting_processes)) {
-      PCB *next = queueDequeue(lock->waiting_processes);
+      PCB *next = queue_dequeue(lock->waiting_processes);
       TracePrintf(0, "Release: Process PID %d releasing lock %d and passing it to process PID %d.\n", curr->pid, lock->id, next->pid);
 
       // Change its state to ready, remove it from blocked queue and put it in ready queue
       next->state = PROC_READY;
       lock->owner = next;
-      queueRemove(blocked_queue, next);
-      queueEnqueue(ready_queue, next);
+      queue_remove(blocked_queue, next);
+      queue_enqueue(ready_queue, next);
    } else {
       // Otherwise, just release the lock.
       lock->locked = 0;
@@ -150,8 +150,8 @@ int PipeInit (int * pipe_idp) {
    pipes[index].len = 0;
 
    // Initializing blocking queues
-   queue_t *waiting_writers = queueCreate();
-   queue_t *waiting_readers = queueCreate();
+   queue_t *waiting_writers = queue_create();
+   queue_t *waiting_readers = queue_create();
    if (waiting_writers == NULL || waiting_readers == NULL) {
       TracePrintf(0, "PipeInit_ERROR: Failed to allocate memory for queues for pipe %d!\n", pipe_id);
       return ERROR;
@@ -188,14 +188,14 @@ int PipeRead(int pipe_id, void *buf, int len) {
       TracePrintf(0, "PipeRead: Pipe %d is empty. Putting process PID %d to sleep!\n", pipe->id, curr->pid);
 
       // There's nothing to read in the pipe. Put the process to sleep and put it on the waiting queue
-      queueEnqueue(pipe->waiting_readers, curr);
+      queue_enqueue(pipe->waiting_readers, curr);
 
       // Block it
       curr->state = PROC_BLOCKED;
-      queueEnqueue(blocked_queue, curr);
+      queue_enqueue(blocked_queue, curr);
 
       // Dispatch the next ready process of the idle process
-      PCB * next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+      PCB * next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
       KernelContextSwitch(KCSwitch, curr, next);
 
       // Got woken up by a writer who finished writing....
@@ -217,12 +217,12 @@ int PipeRead(int pipe_id, void *buf, int len) {
 
    // Wake up all waiting writers (It's kind of inefficient?)
    while (!is_empty(pipe->waiting_writers)) {
-      PCB *waiting_writer = queueDequeue(pipe->waiting_writers);
+      PCB *waiting_writer = queue_dequeue(pipe->waiting_writers);
 
       // Unblock it and add it to ready queue
       waiting_writer->state = PROC_READY;
-      queueRemove(blocked_queue, waiting_writer);
-      queueEnqueue(ready_queue, waiting_writer);
+      queue_remove(blocked_queue, waiting_writer);
+      queue_enqueue(ready_queue, waiting_writer);
    }
 
    return bytes_to_read;
@@ -258,14 +258,14 @@ int PipeWrite(int pipe_id, void *buf, int len) {
       // if buffer is full just block
       if (free_space == 0) {
          TracePrintf(0, "PipeWrite: Pipe %d full. PID %d sleeping.\n", pipe->id, curr->pid);
-         queueEnqueue(pipe->waiting_writers, curr);
+         queue_enqueue(pipe->waiting_writers, curr);
          
          // Block
          curr->state = PROC_BLOCKED;
-         queueEnqueue(blocked_queue, curr);
+         queue_enqueue(blocked_queue, curr);
 
          // Dipsatch next ready process or idle
-         PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+         PCB *next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
          KernelContextSwitch(KCSwitch, curr, next);
 
          // When we wake up, we continue the loop to recalculate free_space
@@ -290,10 +290,10 @@ int PipeWrite(int pipe_id, void *buf, int len) {
       if (!is_empty(pipe->waiting_readers)) {
          TracePrintf(0, "PipeWrite: Waking up waiting readers.\n");
          while (!is_empty(pipe->waiting_readers)) {
-            PCB *reader = queueDequeue(pipe->waiting_readers);
+            PCB *reader = queue_dequeue(pipe->waiting_readers);
             reader->state = PROC_READY;
-            queueRemove(blocked_queue, reader);
-            queueEnqueue(ready_queue, reader);
+            queue_remove(blocked_queue, reader);
+            queue_enqueue(ready_queue, reader);
          }
       }
    }
@@ -323,7 +323,7 @@ int CvarInit (int * cvar_idp) {
    cvars[index].id = id;
    cvars[index].is_active = 1;
    
-   queue_t *waiting_processes = queueCreate();
+   queue_t *waiting_processes = queue_create();
    if (waiting_processes == NULL) {
       TracePrintf(0, "CvarInit_ERROR: Failed to allocate memory for the cvar waiting processes queue!\n");
       return ERROR;
@@ -357,18 +357,18 @@ int CvarWait (int cvar_id, int lock_id) {
    Cvar_t *cvar = &cvars[cvar_idx];
    // Add this process to list of cvar waiters
    TracePrintf(0, "CvarWait: Process PID %d sleeping on cvar %d.\n", curr->pid, cvar_id);
-   queueEnqueue(cvar->waiting_processes, curr);
+   queue_enqueue(cvar->waiting_processes, curr);
 
    // Need to release the lock
    Release(lock_id);
 
    // Block the current process
    curr->state = PROC_BLOCKED;
-   queueEnqueue(blocked_queue, curr);
+   queue_enqueue(blocked_queue, curr);
 
    // Find the next process to run, or run idle if none exists
    
-   PCB *next = (is_empty(ready_queue)) ? idle_proc : queueDequeue(ready_queue);
+   PCB *next = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
    TracePrintf(0, "CvarWait: Process PID %d blocked and switching to process PID %d.\n", curr->pid, next->pid);
    KernelContextSwitch(KCSwitch, curr, next);
 
@@ -390,12 +390,12 @@ int CvarSignal (int cvar_id) {
    Cvar_t *cvar = &cvars[cvar_idx];
    // Check if there are any waiting processes
    if (!is_empty(cvar->waiting_processes)) {
-      PCB *next_waiting_cvar_process = queueDequeue(cvar->waiting_processes);
+      PCB *next_waiting_cvar_process = queue_dequeue(cvar->waiting_processes);
       TracePrintf(0, "CvarSignal: Process PID %d waking up process PID %d on condition variable %d.\n", curr->pid, next_waiting_cvar_process->pid, cvar_id);
 
       next_waiting_cvar_process->state = PROC_READY;
-      queueRemove(blocked_queue, next_waiting_cvar_process);
-      queueEnqueue(ready_queue, next_waiting_cvar_process);
+      queue_remove(blocked_queue, next_waiting_cvar_process);
+      queue_enqueue(ready_queue, next_waiting_cvar_process);
    }
 
    return SUCCESS;
@@ -411,14 +411,14 @@ int CvarBroadcast (int cvar_id) {
    // Wake everyone up
    // Loop until the queue is empty
    while (!is_empty(cvar->waiting_processes)) {
-      PCB *proc = queueDequeue(cvar->waiting_processes);
+      PCB *proc = queue_dequeue(cvar->waiting_processes);
         
       TracePrintf(0, "CvarBroadcast: Waking up PID %d from Cvar %d\n", proc->pid, cvar_id);
 
       // Move from Blocked -> Ready
       proc->state = PROC_READY;
-      queueRemove(blocked_queue, proc);
-      queueEnqueue(ready_queue, proc);
+      queue_remove(blocked_queue, proc);
+      queue_enqueue(ready_queue, proc);
    }
 
    return SUCCESS;
@@ -460,7 +460,7 @@ int ReclaimLockHelper(int id) {
    }
 
    // Clean Up
-   queueDelete(lock->waiting_processes);
+   queue_delete(lock->waiting_processes);
    lock->waiting_processes = NULL;
    lock->is_active = 0;
    lock->locked = 0;
@@ -487,7 +487,7 @@ int ReclaimCvarHelper(int id) {
    }
 
    // Clean Up
-   queueDelete(cvar->waiting_processes);
+   queue_delete(cvar->waiting_processes);
    cvar->waiting_processes = NULL;
    cvar->is_active = 0;
    num_cvars_active--;
@@ -514,8 +514,8 @@ int ReclaimPipeHelper(int id) {
    }
 
    // Clean Up
-   queueDelete(pipe->waiting_readers);
-   queueDelete(pipe->waiting_writers);
+   queue_delete(pipe->waiting_readers);
+   queue_delete(pipe->waiting_writers);
    pipe->waiting_readers = NULL;
    pipe->waiting_writers = NULL;
    pipe->is_active = 0;
