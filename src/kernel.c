@@ -200,7 +200,7 @@ pte_t *InitializeKernelStackIdle(void) {
     }
     for (int i = 0; i < KSTACK_PAGES; i++) {
         int pfn = KSTACK_START_PAGE + i;
-        allocSpecificFrame(pfn, FRAME_KERNEL, -1);
+        AllocSpecificFrame(pfn, FRAME_KERNEL, -1);
 
         kernel_stack[i].valid = 1;
         kernel_stack[i].pfn = pfn;
@@ -217,7 +217,7 @@ pte_t *InitializeKernelStackProcess(void) {
         return NULL;
     }
     for (int i = 0; i < KSTACK_PAGES; i++) {
-        int pfn = allocFrame(FRAME_KERNEL, -1);
+        int pfn = AllocFrame(FRAME_KERNEL, -1);
         if (pfn == -1) {
             TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
             Halt();
@@ -252,7 +252,7 @@ int SetKernelBrk(void *addr_ptr)
 
     /* Grow heap: map pages for VPNs [cur_vpn .. target_vpn-1] */
     while (cur_vpn < target_vpn) {
-        int pfn = allocFrame(FRAME_KERNEL, -1);
+        int pfn = AllocFrame(FRAME_KERNEL, -1);
 
         if (pfn == -1) {
             TracePrintf(0, "SetKernelBrk: out of physical frames\n");
@@ -286,7 +286,7 @@ int SetKernelBrk(void *addr_ptr)
 
 
         /* free the physical frame */
-        freeFrame(pfn);
+        FreeFrame(pfn);
     }
 
     /* update kernel_brk (store vpn) */
@@ -448,7 +448,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
   pte_t *pt_region1 = proc->ptbr;
   for (int vpn = 0; vpn < MAX_PT_LEN; vpn++) {
     if (pt_region1[vpn].valid == 1) {
-        freeFrame(pt_region1[vpn].pfn);
+        FreeFrame(pt_region1[vpn].pfn);
         pt_region1[vpn].valid = 0;
     }
   }
@@ -466,7 +466,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
    */
   TracePrintf(0, "LoadProgram: Allocating %d frames for text segment.\n", li.t_npg);
   for (int i = 0; i < li.t_npg; i++) {
-    int pfn = allocFrame(FRAME_USER, proc->pid);
+    int pfn = AllocFrame(FRAME_USER, proc->pid);
     pt_region1[text_pg1 + i].pfn = pfn;
     pt_region1[text_pg1 + i].valid = 1;
     pt_region1[text_pg1 + i].prot = PROT_READ | PROT_WRITE;
@@ -481,7 +481,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
    */
   TracePrintf(0, "LoadProgram: Allocating %d frames for data segment.\n", data_npg);
   for (int i = 0; i < data_npg; i++) {
-    int pfn = allocFrame(FRAME_USER, proc->pid);
+    int pfn = AllocFrame(FRAME_USER, proc->pid);
     pt_region1[data_pg1 + i].pfn = pfn;
     pt_region1[data_pg1 + i].valid = 1;
     pt_region1[data_pg1 + i].prot = PROT_READ | PROT_WRITE;
@@ -497,7 +497,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
   TracePrintf(0, "LoadProgram: Allocating %d frames for the stack.\n", stack_npg);
   int stack_base = proc->ptlr - stack_npg;
   for (int i = 0; i < stack_npg; i++) {
-    int pfn = allocFrame(FRAME_USER, proc->pid);
+    int pfn = AllocFrame(FRAME_USER, proc->pid);
     pt_region1[stack_base + i].pfn = pfn;
     pt_region1[stack_base + i].valid = 1;
     pt_region1[stack_base + i].prot = PROT_READ | PROT_WRITE;

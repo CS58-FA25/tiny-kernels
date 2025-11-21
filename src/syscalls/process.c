@@ -27,7 +27,7 @@ int Brk(void *addr) {
             continue;
         }
         // Allocate new frame
-        int pfn = allocFrame(FRAME_USER, current_process->pid);
+        int pfn = AllocFrame(FRAME_USER, current_process->pid);
         if (pfn == -1) {
             TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Failed to allocate frames to expand user heap for process PID %d!\n", current_process->pid);
             // TODO: If we already allocated frames for this, free them
@@ -47,7 +47,7 @@ int Brk(void *addr) {
             user_heap_brk_vpn--;
             continue;
         }
-        freeFrame(pt_region1[user_heap_brk_vpn].pfn);
+        FreeFrame(pt_region1[user_heap_brk_vpn].pfn);
         pt_region1[user_heap_brk_vpn].valid = 0; // Mark this mapping as invalid
         WriteRegister(REG_TLB_FLUSH, ((user_heap_brk_vpn) << PAGESHIFT) + VMEM_1_BASE); // Flushing it out from the TLB
         user_heap_brk_vpn++;

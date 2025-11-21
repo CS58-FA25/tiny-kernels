@@ -10,6 +10,7 @@
 extern uint32_t tick_count;
 
 typedef void (*TrapHandler)(UserContext*); // Page 23
+extern TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE]; // Interrup vector table
 
 /**
  * Description:

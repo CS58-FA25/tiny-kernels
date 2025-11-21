@@ -41,7 +41,7 @@ extern pte_t pt_region0[MAX_PT_LEN];
  * @returns pfn (int), the physical frame number we allocated for this usage.
  * 
 */
-int allocFrame(frame_usage_t usage, int owner_pid);
+int AllocFrame(frame_usage_t usage, int owner_pid);
 
 /**
  * ======================== Description =======================
@@ -53,7 +53,7 @@ int allocFrame(frame_usage_t usage, int owner_pid);
  * @returns -1 if the frame is not free or not found, pfn if allocation succeeded
  * 
 */
-int allocSpecificFrame(int pfn, frame_usage_t usage, int owner_pid);
+int AllocSpecificFrame(int pfn, frame_usage_t usage, int owner_pid);
 
 /**
  * ======================== Description =======================
@@ -64,7 +64,46 @@ int allocSpecificFrame(int pfn, frame_usage_t usage, int owner_pid);
  * @returns Nothing
  * 
 */
-void freeFrame(int pfn);
+void FreeFrame(int pfn);
+
+/**
+ * Description:
+ *    CloneFrame copies the contents of one physical frame into another by temporarily
+ *    mapping both frames into two scratch virtual addresses inside Region 0. This avoids
+ *    using kernel stack-based copying and ensures the kernel can read and write the frames
+ *    safely. The function maps the source frame read-only, maps the destination frame
+ *    read-write, flushes the TLB, performs a memcpy through the scratch virtual addresses,
+ *    and then unmaps both pages.
+ *
+ * ======= Parameters =======
+ * @param pfn_src : Physical frame number of the source frame to be copied.
+ * @param pfn_dst : Physical frame number of the destination frame to write into.
+ *
+ * ====== Return =======
+ * @return void
+ */
+void CloneFrame(int pfn_src, int pfn_dst);
+
+/**
+ * Description:
+ *    CopyPT clones the page table of one process (src) into another process (dst).
+ *    For every valid entry in the source page table, the function allocates a new
+ *    physical frame for the destination process, clones the contents of the source
+ *    frame into the new frame using CloneFrame, and initializes the corresponding
+ *    destination PTE to match the source's permissions. The function returns ERROR
+ *    if any frame allocation fails; otherwise, it returns SUCCESS on completion.
+ *
+ * ======= Parameters =======
+ * @param src : Pointer to the PCB of the source process whose page table is copied.
+ * @param dst : Pointer to the PCB of the destination process that receives the cloned page table.
+ *
+ * ====== Return =======
+ * @return int :
+ *      - SUCCESS (0) if the page table was fully and correctly copied.
+ *      - ERROR (-1) if a frame allocation failed.
+ */
+
+int CopyPT(PCB *src, PCB *dst);
 
 /**
  * ======================== Description =======================
@@ -126,8 +165,7 @@ void MapRegion0(unsigned int vpn, int pfn);
  * 
 */
 void UnmapRegion0(unsigned int vpn);
-void CloneFrame(int pfn_src, int pfn_dst);
-int CopyPT(PCB *src, PCB *dst);
+
 
 
 #endif

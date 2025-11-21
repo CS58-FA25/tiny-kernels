@@ -129,7 +129,7 @@ void CloneRegion1(PCB *pcb_from, PCB *pcb_to) {
     pte_t *pt_region1_to = pcb_to->ptbr;
     for (int i = 0; i < NUM_PAGES_REGION1; i++) {
         if (pt_region1_from[i].valid == 1) {
-            int pfn_to = allocFrame(FRAME_USER, pcb_to->pid);
+            int pfn_to = AllocFrame(FRAME_USER, pcb_to->pid);
             int pfn_from = pt_region1_from[i].pfn;
             CloneFrame(pfn_from, pfn_to);
 
@@ -174,7 +174,7 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
     }
     // Allocating memory for user stack. Initially it's one page and going to be at the top of region 1
     int ustack_vpn = (VMEM_1_LIMIT - PAGESIZE - VMEM_1_BASE) >> PAGESHIFT;
-    int ustack_pfn = allocFrame(FRAME_USER, 0);
+    int ustack_pfn = AllocFrame(FRAME_USER, 0);
     MapPage(idle_proc->ptbr, ustack_vpn, ustack_pfn, PROT_READ | PROT_WRITE);
     memset(&idle_proc->user_context, 0, sizeof(UserContext));
 

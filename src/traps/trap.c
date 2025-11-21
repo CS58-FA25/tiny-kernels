@@ -8,6 +8,32 @@
 #include <hardware.h> 
 #include "syscalls/tty.h"
 
+TrapHandler TRAP_VECTOR[TRAP_VECTOR_SIZE] = {
+   // Kernel, Clock, Illegal, Memory (0-3)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+
+   // Math, Tty Rx, Tty Tx, Disk (4-7)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler, 
+
+   // Unused (8-11)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+
+   // EXTRA (12-15)
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+   NotImplementedTrapHandler,
+};
+
 /* ========= Forward Declarations of helper functions ========= */
 void ClockTrapHandlerHelper(void *arg, PCB *process);
 int growStack(unsigned int addr);
@@ -388,13 +414,13 @@ int growStack(unsigned int addr) {
 
    pte_t *pt_region1 = current_process->ptbr;
    for (int i = 0; i < num_pages_requested; i++) {
-      int pfn = allocFrame(FRAME_USER, current_process->pid);
+      int pfn = AllocFrame(FRAME_USER, current_process->pid);
       if (pfn == -1) {
          TracePrintf(0, "Kernel: Ran out of physical frames while trying to grow user stack for process PID %d!\n", current_process->pid);
          // Need to deallocate all the frames that we already allocated
          for (int j = 0; j < i; j++) {
             int pfn_to_free = pt_region1[target_vpn + j].pfn;
-            freeFrame(pfn_to_free);
+            FreeFrame(pfn_to_free);
             pt_region1[target_vpn + j].valid = 0;
             // Do i need to zero out the frame?
          }

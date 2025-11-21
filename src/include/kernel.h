@@ -48,7 +48,7 @@ int SetKernelBrk(void *addr_ptr);
  *        during virtual memory initialization.
  * ======================== Behavior ==========================
  * - Allocates a page table of size `KSTACK_PAGES` for the idle kernel stack.
- * - For each stack page, allocates a specific frame (using `allocSpecificFrame`)
+ * - For each stack page, allocates a specific frame (using `AllocSpecificFrame`)
  *   corresponding to the pre-mapped physical frames starting at `KSTACK_START_PAGE`.
  * - Marks each PTE as valid with read/write protection.
  * ======================== Returns ===========================
@@ -69,7 +69,7 @@ pte_t *InitializeKernelStackIdle(void);
  *        kernel stack and maps them with standard read/write permissions.
  * ======================== Behavior ==========================
  * - Allocates a page table of size `KSTACK_PAGES` for the process’s kernel stack.
- * - For each stack page, allocates a new physical frame using `allocFrame(FRAME_KERNEL)`.
+ * - For each stack page, allocates a new physical frame using `AllocFrame(FRAME_KERNEL)`.
  * - Marks each PTE as valid and sets read/write protection bits.
  * ======================== Returns ===========================
  * @returns pte_t* Pointer to the initialized kernel stack page table.
