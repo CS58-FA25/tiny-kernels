@@ -141,3 +141,33 @@ void InitializeTerminals(void) {
     }
     TracePrintf(0, "Kernel: Sucessfully initialized all terminals!\n");
 }
+
+/**
+ * ======== InitializeProcQueues =======
+ * See init.h for more details
+*/
+void InitializeProcQueues(void) {
+    ready_queue = queueCreate();
+    if (ready_queue == NULL) {
+        TracePrintf(0, "ready_queue: Couldn't allocate memory for ready queue.\n");
+        Halt();
+    }
+
+    blocked_queue = queueCreate();
+    if (blocked_queue == NULL) {
+        TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
+        Halt();
+    }
+
+    zombie_queue = queueCreate();
+    if (zombie_queue == NULL) {
+        TracePrintf(0, "zombie_queue: Couldn't allocate memory for zombie queue.\n");
+        Halt();
+    }
+
+    waiting_parents = queueCreate();
+    if (waiting_parents == NULL) {
+        TracePrintf(0, "waiting_parents: Couldn't allocate memory for waiting parents queue.\n");
+        Halt();
+    }
+}

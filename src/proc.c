@@ -7,19 +7,28 @@
 
 
 PCB *idle_proc; // Pointer to the idle process PCB
-PCB *init_proc;
+PCB *init_proc; // A pointer to holde the init process PCB when loaded
 PCB *current_process; // Pointer to the current running process PCB
 queue_t *ready_queue; // A FIFO queue of processes ready to be executed by the cpu
 queue_t *blocked_queue; // A queue of processes blocked (either waiting on a lock, cvar or waiting for an I/O to finish)
 queue_t *zombie_queue; // A queue of processes that have terminated but whose parent has not yet called Wait()
 queue_t *waiting_parents; // A queue of processes blocked waiting for a child to exit;
 
+/* ============= Start of Forward Declarations ============== */
+void deletePCBHelper(void *arg, PCB *process);
+void DoIdle(void);
+/* ============= End of Forward Declarations ============= */
+
 PCB **proc_table;
 
-PCB *allocNewPCB() {
+/**
+ * ======== AllocNewPCB =======
+ * See proc.h for more details
+*/
+PCB *AllocNewPCB() {
     PCB *process = (PCB *)malloc(sizeof(PCB));
     if (process == NULL) {
-        TracePrintf(0, "allocNewPCB: Failed to allocate memory for PCB.\n");
+        TracePrintf(0, "AllocNewPCB: Failed to allocate memory for PCB.\n");
         return NULL;
     }
 
@@ -39,8 +48,6 @@ PCB *allocNewPCB() {
     memset(process->ptbr, 0, NUM_PAGES_REGION1 * sizeof(pte_t)); // All entries are invalid
     process->ptlr = NUM_PAGES_REGION1;
     
-
-    
     process->user_heap_start_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_heap_end_vaddr = USER_MEM_START; // Reassign after loadProgram is called
     process->user_stack_base_vaddr = USER_STACK_BASE;
@@ -56,7 +63,7 @@ PCB *allocNewPCB() {
     process->parent = NULL;
     process->children_processes = queueCreate();
     if (process->children_processes == NULL) {
-        TracePrintf(0, "allocNewPCB: Failed to create children queue.\n");
+        TracePrintf(0, "AllocNewPCB: Failed to create children queue.\n");
         free(process->ptbr);
         free(process);
         return NULL;
@@ -66,16 +73,47 @@ PCB *allocNewPCB() {
     process->last_run_tick = 0;
     process->delay_ticks = 0;
 
-    TracePrintf(1, "allocNewPCB: New PCB created at %p\n", process);
+    TracePrintf(1, "AllocNewPCB: New PCB created at %p\n", process);
     return process;
 
 }
 
-void deletePCBHelper(void *arg, PCB* process) {
-    process->parent = NULL;
-    process->state = PROC_ORPHAN;
+/**
+ * ======== getFreePCB =======
+ * See proc.h for more details
+*/
+PCB *getFreePCB(void) {
+    if (proc_table == NULL) {
+        TracePrintf(0, "getFreePCB: The process table is not initialized.\n");
+        return NULL;
+    }
+    
+    // Look for an empty (NULL) slot
+    for (int i = 0; i < MAX_PROCS; i++) {
+        if (proc_table[i] == NULL) {
+            
+            // Found one! Allocate a new PCB for it.
+            PCB *pcb = AllocNewPCB();
+            
+            // Put it in the table
+            proc_table[i] = pcb; 
+            
+            // Set its initial state and return it
+            pcb->state = PROC_RUNNING; // Or whatever state you use for "new"
+            pcb->pid = helper_new_pid(pcb->ptbr);
+            
+            return pcb;
+        }
+    }
+    
+    // No NULL slots found, table is full
+    return NULL;
 }
 
+/**
+ * ======== deletePCB =======
+ * See proc.h for more details
+*/
 void deletePCB(PCB *process) {
     if (process == NULL) {
         TracePrintf(0, "delete_PCB: Process is null.\n");
@@ -96,76 +134,10 @@ void deletePCB(PCB *process) {
     free(process);
 }
 
-PCB *getFreePCB(void) {
-    if (proc_table == NULL) {
-        TracePrintf(0, "getFreePCB: The process table is not initialized.\n");
-        return NULL;
-    }
-    
-    // Look for an empty (NULL) slot
-    for (int i = 0; i < MAX_PROCS; i++) {
-        if (proc_table[i] == NULL) {
-            
-            // Found one! Allocate a new PCB for it.
-            PCB *pcb = allocNewPCB();
-            
-            // Put it in the table
-            proc_table[i] = pcb; 
-            
-            // Set its initial state and return it
-            pcb->state = PROC_RUNNING; // Or whatever state you use for "new"
-            pcb->pid = helper_new_pid(pcb->ptbr);
-            
-            return pcb;
-        }
-    }
-    
-    // No NULL slots found, table is full
-    return NULL;
-}
-
-void CloneRegion1(PCB *pcb_from, PCB *pcb_to) {
-    pte_t *pt_region1_from = pcb_from->ptbr;
-    pte_t *pt_region1_to = pcb_to->ptbr;
-    for (int i = 0; i < NUM_PAGES_REGION1; i++) {
-        if (pt_region1_from[i].valid == 1) {
-            int pfn_to = AllocFrame(FRAME_USER, pcb_to->pid);
-            int pfn_from = pt_region1_from[i].pfn;
-            CloneFrame(pfn_from, pfn_to);
-
-            pt_region1_to[i].pfn = pfn_to;
-            pt_region1_to[i].prot = pt_region1_from[i].prot;
-            pt_region1_to[i].valid = 1;
-        }
-    }
-}
-
-void InitializeProcQueues(void) {
-    ready_queue = queueCreate();
-    if (ready_queue == NULL) {
-        TracePrintf(0, "ready_queue: Couldn't allocate memory for ready queue.\n");
-        Halt();
-    }
-
-    blocked_queue = queueCreate();
-    if (blocked_queue == NULL) {
-        TracePrintf(0, "blocked_queue: Couldn't allocate memory for blocked queue.\n");
-        Halt();
-    }
-
-    zombie_queue = queueCreate();
-    if (zombie_queue == NULL) {
-        TracePrintf(0, "zombie_queue: Couldn't allocate memory for zombie queue.\n");
-        Halt();
-    }
-
-    waiting_parents = queueCreate();
-    if (waiting_parents == NULL) {
-        TracePrintf(0, "waiting_parents: Couldn't allocate memory for waiting parents queue.\n");
-        Halt();
-    }
-}
-
+/**
+ * ======== CreateIdlePCB =======
+ * See proc.h for more details
+*/
 PCB *CreateIdlePCB(UserContext *uctxt) {
     idle_proc = getFreePCB();
     if (idle_proc == NULL) {
@@ -188,6 +160,31 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
     return idle_proc;
 }
 
+
+/* ============== Helper and Idle =============== */
+
+/**
+ * Description: itemfunc function passed to queryIterate to iterate over a process children's and
+ *              make them orphans (setting their parent to null and changing their status to orphan)
+ * =========== Parameters ==========
+ * @param arg: NULL.
+ * @param process: A pointer to the PCB of the child process to be made an orphan.
+ * =========== Returns ===========
+ * @return void
+*/
+void deletePCBHelper(void *arg, PCB* process) {
+    process->parent = NULL;
+    process->state = PROC_ORPHAN;
+}
+
+/**
+ * Description: Routine to be run while the ready_queue is empty (no process to run on the cpu)
+ *              to keep the cpu busy
+ * =========== Parameters ==========
+ * @param void
+ * =========== Returns ===========
+ * @return void
+*/
 void DoIdle(void) {
     while (1) {
         TracePrintf(0, "Running Idle Process...\n");

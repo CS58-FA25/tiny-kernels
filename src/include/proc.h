@@ -93,7 +93,7 @@ extern PCB **proc_table; // List of processes. Not all of them are actual proces
  * - Each PCB has its own children queue to track forked processes.
  * - Does not yet allocate a kernel stack; that’s done separately.
  */
-PCB *allocNewPCB(void); // Allocates memory and initializes one PCB (used only during kernel init)
+PCB *AllocNewPCB(void); // Allocates memory and initializes one PCB (used only during kernel init)
 
 /**
  * ======================== Description =======================
@@ -118,19 +118,6 @@ void deletePCB(PCB *process);
  */
 PCB *getFreePCB(void); // Retrieves an unused PCB from proc_table for process creation
 
-void CloneRegion1(PCB *pcb_from, PCB *pcb_to);
-
-/**
- * ======================== Description =======================
- * @brief Initializes the global process queues used by the scheduler.
- * ======================== Behavior ==========================
- * - Allocates and initializes the ready, blocked, and zombie queues.
- * - Each queue is created using `queueCreate()` and stored in global vars.
- * ======================== Notes =============================
- * - Called once during kernel startup before any process is created.
- * - Halts the system if any allocation fails to prevent inconsistent state.
- */
-void InitializeProcQueues(void);
 
 /**
  * ======================== Description =======================
@@ -146,13 +133,6 @@ void InitializeProcQueues(void);
  */
 PCB *CreateIdlePCB(UserContext *uctxt);
 
-/**
- * ======================== Description =======================
- * @brief Entry point for the idle process.
- * ======================== Behavior ==========================
- * - Loops forever, calling `Pause()` to yield CPU when possible.
- * - Used as the background process when no others are runnable.
- */
-void DoIdle(void);
+
 
 #endif /* PROC_H */
