@@ -3,6 +3,8 @@
 
 #include "queue.h"
 #include "proc.h"
+
+/* ============== Types and Global Variables ============= */
 typedef struct terminal {
     queue_t *blocked_writers; // Queue of processes waiting to write to the terminal
     queue_t *blocked_readers; // Queue of processes waiting to read from the terminal
@@ -17,9 +19,33 @@ typedef struct terminal {
 } terminal_t;
 
 extern terminal_t terminals[NUM_TERMINALS];
+/* ============== Types and Global Variables ============= */
 
-int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len);
+/**
+ * Description: Reads up to len bytes from the terminal. If data is already
+ *              available, returns immediately; otherwise the calling process
+ *              blocks until input arrives and is later copied into user buf.
+ * ========= Parameters ========
+ * @param tty_id: Terminal ID to read from.
+ * @param buf: User buffer where data will be placed when unblocked.
+ * @param len: Maximum number of bytes to read.
+ * ========= Returns ==========
+ * @return Number of bytes read, or ERROR
+ */
 int TtyRead(int tty_id, void *buf, int len);
+
+/**
+ * Description: Writes len bytes to the terminal. If the terminal is busy, the
+ *              caller blocks until it acquires the write lock, then begins a
+ *              transmit and sleeps again until all bytes are written.
+ * ========= Parameters ========
+ * @param tty_id : Terminal ID to write to.
+ * @param buf    : User buffer containing data to write.
+ * @param len    : Number of bytes to write.
+ * ========= Returns ==========
+ * @return len on success, or ERROR
+ */
+
 int TtyWrite(int tty_id, void *buf, int len);
 
 

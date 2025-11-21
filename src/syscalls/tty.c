@@ -1,35 +1,16 @@
 #include "syscalls/tty.h"
 #include "kernel.h"
 
+/* ============== Forward Declarations & Global variables ============== */
+int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len);
 
 terminal_t terminals[NUM_TERMINALS];
+/* ============== Forward Declarations & Global variables ============== */
 
-int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len) {
-   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting to write %d bytes to terminal tty_id %d.\n", writer->pid, len, tty_id);
-   
-   terminal_t *terminal = &terminals[tty_id];
-   terminal->write_buffer = malloc(len);
-
-   if (terminal->write_buffer == NULL) {
-      TracePrintf(0, "BeginTtyTransmit: Failed to allocate memory for write buffer for terminal %d and writer process %d.\n", tty_id, writer->pid);
-      writer->user_context.regs[0] = ERROR;
-      return ERROR;
-   }
-
-   // Need to copy the contents of the buffer into the kernel array write_buffer in case a context switch happens
-   memcpy(terminal->write_buffer, buf, len);
-   terminal->write_buffer_len = len;
-   terminal->write_buffer_position = 0;
-   terminal->current_writer = writer;
-
-   // Beginning the first write transmit
-   int bytes_to_write = (len > TERMINAL_MAX_LINE) ? TERMINAL_MAX_LINE : len;
-   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting off by writing %d bytes into terminal tty_id %d.\n", writer->pid, bytes_to_write, tty_id);
-   TtyTransmit(tty_id, terminal->write_buffer, bytes_to_write);
-   terminal->write_buffer_position = bytes_to_write;
-   return SUCCESS;
-}
-
+/**
+ * ======== TtyRead =======
+ * See tty.h for more details
+*/
 int TtyRead(int tty_id, void *buf, int len) {
 
    if (tty_id < 0 || tty_id >= NUM_TERMINALS || buf == NULL || len <= 0) {
@@ -88,6 +69,10 @@ int TtyRead(int tty_id, void *buf, int len) {
    return curr->user_context.regs[0];
 }
 
+/**
+ * ======== TtyWrite =======
+ * See tty.h for more details
+*/
 int TtyWrite(int tty_id, void *buf, int len) {
    // Validate Arguments
    if (tty_id < 0 || tty_id >= NUM_TERMINALS || buf == NULL || len <= 0) {
@@ -149,4 +134,45 @@ int TtyWrite(int tty_id, void *buf, int len) {
    // Done!! The trap handler woke us up.
    TracePrintf(0, "TtyWrite: PID %d write complete.\n", curr->pid);
    return len;
+}
+
+/* =============== Helpers =============== */
+
+/**
+ * Description: Prepares and starts a terminal transmission by copying the user
+ *              buffer into a kernel write buffer, initializing write state, and
+ *              issuing the first TtyTransmit chunk.
+ * ========= Parameters ========
+ * @param tty_id: Terminal ID to write to.
+ * @param writer: PCB of the writing process.
+ * @param buf: User data to copy into kernel space.
+ * @param len: Total number of bytes to transmit.
+ * ========= Returns ==========
+ * @return SUCCESS or ERROR
+ */
+
+int BeginTtyTransmit(int tty_id, PCB *writer, void *buf, int len) {
+   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting to write %d bytes to terminal tty_id %d.\n", writer->pid, len, tty_id);
+   
+   terminal_t *terminal = &terminals[tty_id];
+   terminal->write_buffer = malloc(len);
+
+   if (terminal->write_buffer == NULL) {
+      TracePrintf(0, "BeginTtyTransmit: Failed to allocate memory for write buffer for terminal %d and writer process %d.\n", tty_id, writer->pid);
+      writer->user_context.regs[0] = ERROR;
+      return ERROR;
+   }
+
+   // Need to copy the contents of the buffer into the kernel array write_buffer in case a context switch happens
+   memcpy(terminal->write_buffer, buf, len);
+   terminal->write_buffer_len = len;
+   terminal->write_buffer_position = 0;
+   terminal->current_writer = writer;
+
+   // Beginning the first write transmit
+   int bytes_to_write = (len > TERMINAL_MAX_LINE) ? TERMINAL_MAX_LINE : len;
+   TracePrintf(0, "BeginTtyTransmit: Process PID %d starting off by writing %d bytes into terminal tty_id %d.\n", writer->pid, bytes_to_write, tty_id);
+   TtyTransmit(tty_id, terminal->write_buffer, bytes_to_write);
+   terminal->write_buffer_position = bytes_to_write;
+   return SUCCESS;
 }
