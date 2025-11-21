@@ -6,7 +6,15 @@
 #include <hardware.h>
 #include <ykernel.h>
 
+/* ============ Forward Declarations =========== */
+void OrphanAdoptionHelper(void *arg, PCB *child);
+/* ============ Forward Declarations =========== */
 
+
+/**
+ * ======= Brk =======
+ * See process.h for more details.
+*/
 int Brk(void *addr) {
     if (addr == NULL) {
         TracePrintf(SYSCALLS_TRACE_LEVEL, "Brk: Address passed to Brk is NULL.\n");
@@ -59,6 +67,10 @@ int Brk(void *addr) {
 
 }
 
+/**
+ * ======= Fork =======
+ * See process.h for more details.
+*/
 int Fork (void) {
     PCB *child = getFreePCB();   // Create new process: pid, process control block
     if (child == NULL) {
@@ -103,6 +115,10 @@ int Fork (void) {
 }
 
 
+/**
+ * ======= Exec =======
+ * See process.h for more details.
+*/
 int Exec(char *filename, char **argvec) {
     PCB *curr = current_process;
     int load_status = LoadProgram(filename, argvec, curr);
@@ -115,12 +131,22 @@ int Exec(char *filename, char **argvec) {
     return SUCCESS;
 }
 
+
+/**
+ * ======= Exit =======
+ * See process.h for more details.
+*/
 void Exit (int status) {
     // Need to handle orphan processes somehow
     PCB* curr = current_process;
     if (curr->pid == 1) {
         deletePCB(curr);
         Halt();
+    }
+    
+    // Handling the orphan adoption for this process if it has any children
+    if (!is_empty(curr->children_processes)) {
+        queue_iterate(curr->children_processes, (void *)init_proc, OrphanAdoptionHelper);
     }
 
     queue_enqueue(zombie_queue, curr);
@@ -131,6 +157,7 @@ void Exit (int status) {
     if (parent && parent->waiting_for_child_pid) {
         parent->state = PROC_READY;
         parent->waiting_for_child_pid = 0;
+        queue_remove(blocked_queue, parent);
         queue_enqueue(ready_queue, parent);
     }
 
@@ -143,7 +170,10 @@ void Exit (int status) {
     }
 }
 
-
+/**
+ * ======= Wait =======
+ * See process.h for more details.
+*/
 int Wait (int * status_ptr) {
     PCB *curr = current_process;
     if (curr->children_processes->head == NULL) {
@@ -168,6 +198,7 @@ int Wait (int * status_ptr) {
 
     curr->state = PROC_BLOCKED;
     curr->waiting_for_child_pid = 1;
+    queue_enqueue(blocked_queue, curr);
     PCB *next = is_empty(ready_queue) ? idle_proc : queue_dequeue(ready_queue);
     int rc = KernelContextSwitch(KCSwitch, curr, next);
     if (rc == -1) {
@@ -193,11 +224,19 @@ int Wait (int * status_ptr) {
 
 }
 
+/**
+ * ======= GetPid =======
+ * See process.h for more details.
+*/
 int GetPid (void) {
    // Get current process PCB and return the PID
    return current_process->pid;
 }
 
+/**
+ * ======= Delay =======
+ * See process.h for more details.
+*/
 int Delay(int clock_ticks) {
     if (clock_ticks == 0) {
         return SUCCESS;
@@ -227,3 +266,40 @@ int Delay(int clock_ticks) {
     return SUCCESS;
 }
 
+
+/* =============== Helpers =============== */
+
+/**
+ * Description: Helper used when a process exits to reassign its children to the
+ *              init process (PID 1). If a reparented child is already a zombie,
+ *              wakes init so it can reap the zombie.
+ * ========= Parameters ========
+ * @param arg   : Pointer to the init process PCB.
+ * @param child : Child process being reparented.
+ * ========= Returns ==========
+ * @return (void)
+ */
+void OrphanAdoptionHelper(void *arg, PCB *child) {
+    PCB *init_proc = (PCB *)arg;
+
+    // Reparenting
+    child->ppid = 1;
+    child->parent = init_proc;
+
+    // Adding it to its queue of children
+    queue_t *init_proc_children = init_proc->children_processes;
+    queue_enqueue(init_proc_children, child);
+    
+    if (child->state == PROC_ZOMBIE) {
+        TracePrintf(0, "OrphanAdoption: Child %d is a zombie. Waking up Init to reap it.\n", child->pid);
+        // Check if Init is actually blocked and waiting for a zombie child to reap(presumably in Wait())
+        if (init_proc->waiting_for_child_pid) {
+            init_proc->state = PROC_READY;
+            init_proc->waiting_for_child_pid = 0;
+
+            queue_remove(blocked_queue, init_proc);
+            queue_enqueue(ready_queue, init_proc);
+        }
+    }
+
+}

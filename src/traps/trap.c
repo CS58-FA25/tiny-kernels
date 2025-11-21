@@ -5,6 +5,7 @@
 #include "kernel.h"
 #include "mem.h"
 #include "syscalls/process.h"
+#include "syscalls/synchronization.h"
 #include <hardware.h> 
 #include "syscalls/tty.h"
 
@@ -188,14 +189,149 @@ void KernelTrapHandler(UserContext* ctx) {
                 ctx->regs[0] = ERROR;
                 break;
             }
-
             memcpy(&current_process->user_context, ctx, sizeof(UserContext));
             int rc = TtyWrite(tty_id, buf, len);
             memcpy(ctx, &current_process->user_context, sizeof(UserContext));
             ctx->regs[0] = rc;
             break;
          }
-
+         case YALNIX_PIPE_INIT: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing PipeInit syscall for process PID %d.\n", current_process->pid);
+            int *pipe_idp = (int *)ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = PipeInit(pipe_idp);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHandler: Error, failed to initialize a pipe for process PID %d.\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_LOCK_INIT: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing LockInit syscall for process PID %d.\n", current_process->pid);
+            int *lock_idp = (int *)ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = LockInit(lock_idp);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHandler: Error, failed to initialize a lock for process PID %d.\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_CVAR_INIT: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing CvarInit syscall for process PID %d.\n", current_process->pid);
+            int *cvar_idp = (int *)ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = CvarInit(cvar_idp);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHandler: Error, failed to initialize a cvar for process PID %d.\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_PIPE_READ: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing PipeRead syscall for process PID %d.\n", current_process->pid);
+            int pipe_id = (int) ctx->regs[0];
+            void *buf = (void *) ctx->regs[1];
+            int len = (int) ctx->regs[2];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = PipeRead(pipe_id, buf, len);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute PipeRead for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_PIPE_WRITE: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing PipeWrite syscall for process PID %d.\n", current_process->pid);
+            int pipe_id = (int) ctx->regs[0];
+            void *buf = (void *) ctx->regs[1];
+            int len = (int) ctx->regs[2];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = PipeWrite(pipe_id, buf, len);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute PipeWrite for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_LOCK_ACQUIRE: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing Acquire syscall for process PID %d.\n", current_process->pid);
+            int lock_id = (int) ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = Acquire(lock_id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute Acquire for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_LOCK_RELEASE: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing Release syscall for process PID %d.\n", current_process->pid);
+            int lock_id = (int) ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = Release(lock_id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute Release for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_CVAR_WAIT: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing CvarWait syscall for process PID %d.\n", current_process->pid);
+            int cvar_id = (int) ctx->regs[0];
+            int lock_id = (int) ctx->regs[1];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = CvarWait(cvar_id, lock_id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute CvarWait for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_CVAR_SIGNAL: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing CvarSignal syscall for process PID %d.\n", current_process->pid);
+            int cvar_id = (int) ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = CvarSignal(cvar_id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute CvarSignal for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_CVAR_BROADCAST: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing CvarBroadcast syscall for process PID %d.\n", current_process->pid);
+            int cvar_id = (int) ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = CvarBroadcast(cvar_id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute CvarBroadcast for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
+         case YALNIX_RECLAIM: {
+            TracePrintf(TRAP_TRACE_LEVEL, "KernelTrapHanlder: Executing Reclaim syscall for process PID %d.\n", current_process->pid);
+            int id = (int) ctx->regs[0];
+            memcpy(&current_process->user_context, ctx, sizeof(UserContext));
+            int rc = Reclaim(id);
+            if (rc == ERROR) {
+               TracePrintf(TRAP_TRACE_LEVEL," KernelTrapHandler_ERROR: Failed to execute Reclaim for process PID %d!\n", current_process->pid);
+            }
+            memcpy(ctx, &current_process->user_context, sizeof(UserContext));
+            ctx->regs[0] = rc;
+            break;
+         }
     }
 
 }
