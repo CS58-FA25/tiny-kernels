@@ -4,6 +4,7 @@
 #include "proc.h"
 #include "kernel.h"
 
+/* =============== Forward Declarations =============== */
 Lock_t locks[NUM_LOCKS];
 Cvar_t cvars[NUM_CVARS];
 Pipe_t pipes[NUM_PIPES];
@@ -15,7 +16,12 @@ int num_pipes_active = 0;
 int ReclaimLockHelper(int id);
 int ReclaimCvarHelper(int id);
 int ReclaimPipeHelper(int id);
+/* =============== Forward Declarations =============== */
 
+/**
+ * ======= LockInit =======
+ * See synchronization.h for more details.
+*/
 int LockInit(int *lock_idp) {
    if (num_locks_active == NUM_LOCKS) {
       TracePrintf(0, "LockInit_ERROR: Can't initialize another lock. Already reached the maximum number of locks in use.\n");
@@ -48,6 +54,11 @@ int LockInit(int *lock_idp) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= Acquire =======
+ * See synchronization.h for more details.
+*/
 int Acquire (int lock_id) {
    int lock_index = GET_INDEX(lock_id);
    if (lock_index > NUM_LOCKS || lock_index < 0) {
@@ -86,6 +97,11 @@ int Acquire (int lock_id) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= Release =======
+ * See synchronization.h for more details.
+*/
 int Release (int lock_id) {
    int lock_index = GET_INDEX(lock_id);
    if (lock_index >= NUM_LOCKS || lock_index < 0) {
@@ -125,6 +141,11 @@ int Release (int lock_id) {
 
 /* ============ Pipes ============ */
 
+
+/**
+ * ======= PipeInit =======
+ * See synchronization.h for more details.
+*/
 int PipeInit (int * pipe_idp) {
    if (num_pipes_active == NUM_PIPES) {
       TracePrintf(0, "PipeInit_ERROR: Can't initialize another Pipe. Already reached the maximum number of pipes in use.\n");
@@ -165,6 +186,11 @@ int PipeInit (int * pipe_idp) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= PipeRead =======
+ * See synchronization.h for more details.
+*/
 int PipeRead(int pipe_id, void *buf, int len) {
    int pipe_idx = GET_INDEX(pipe_id);
 
@@ -228,6 +254,11 @@ int PipeRead(int pipe_id, void *buf, int len) {
    return bytes_to_read;
 }
 
+
+/**
+ * ======= PipeWrite =======
+ * See synchronization.h for more details.
+*/
 int PipeWrite(int pipe_id, void *buf, int len) {
    int pipe_idx = GET_INDEX(pipe_id);
 
@@ -304,6 +335,11 @@ int PipeWrite(int pipe_id, void *buf, int len) {
 
 /* =========== Condition Variables ============== */
 
+
+/**
+ * ======= CvarInit =======
+ * See synchronization.h for more details.
+*/
 int CvarInit (int * cvar_idp) {
    if (num_cvars_active == NUM_CVARS) {
       TracePrintf(0, "CvarInit_ERROR: Can't initialize another cvar. Already reached the maximum number of cvars in use.\n");
@@ -334,6 +370,11 @@ int CvarInit (int * cvar_idp) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= CvarWait =======
+ * See synchronization.h for more details.
+*/
 int CvarWait (int cvar_id, int lock_id) {
    int cvar_idx = GET_INDEX(cvar_id);
    int lock_idx = GET_INDEX(lock_id);
@@ -379,6 +420,11 @@ int CvarWait (int cvar_id, int lock_id) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= CvarSignal =======
+ * See synchronization.h for more details.
+*/
 int CvarSignal (int cvar_id) {
    int cvar_idx = GET_INDEX(cvar_id);
    PCB *curr = current_process;
@@ -401,6 +447,11 @@ int CvarSignal (int cvar_id) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= CvarBroadcast =======
+ * See synchronization.h for more details.
+*/
 int CvarBroadcast (int cvar_id) {
    int cvar_idx = GET_INDEX(cvar_id);
    if (cvar_idx >= NUM_CVARS || cvar_idx < 0 || !cvars[cvar_idx].is_active) {
@@ -424,6 +475,11 @@ int CvarBroadcast (int cvar_id) {
    return SUCCESS;
 }
 
+
+/**
+ * ======= Reclaim =======
+ * See synchronization.h for more details.
+*/
 int Reclaim (int id) {
    int type = GET_TYPE(id);
    int rc = ERROR;
@@ -441,6 +497,17 @@ int Reclaim (int id) {
    return rc;
 }
 
+/* ================ Helpers ================= */
+
+/**
+ * Description: Helper to reclaim a lock given a lock ID. It validate the id to make
+ *              sure that it's a valid lock ID, the lock is not already inactive, in use
+ *              by a process or has waiting processes.
+ * ========== Parameters ===========
+ * @param id: The id of the lock to be reclaimed.
+ * ========== Returns ==========
+ * @return SUCCESS if the lock was reclaimed succesfully. ERROR otherwise.
+*/
 int ReclaimLockHelper(int id) {
    int lock_index = GET_INDEX(id);
    PCB *curr = current_process;
@@ -468,6 +535,14 @@ int ReclaimLockHelper(int id) {
    return SUCCESS;
 }
 
+/**
+ * Description: Helper to reclaim a conditions variable given a cvar ID. It validate the id to make
+ *              sure that it's a valid cvar ID, the cvar is not already inactive or has waiting processes.
+ * ========== Parameters ===========
+ * @param id: The id of the cvar to be reclaimed.
+ * ========== Returns ==========
+ * @return SUCCESS if the cvar was reclaimed succesfully. ERROR otherwise.
+*/
 int ReclaimCvarHelper(int id) {
    int cvar_index = GET_INDEX(id);
    PCB *curr = current_process;
@@ -495,6 +570,15 @@ int ReclaimCvarHelper(int id) {
 
 }
 
+
+/**
+ * Description: Helper to reclaim a pipe given a pipe ID. It validate the id to make sure it's a valid
+ *              pipe id, the pipe is not alrady inactive, or has waiting readers or writers.
+ * ========== Parameters ===========
+ * @param id: The id of the pipe to be reclaimed.
+ * ========== Returns ==========
+ * @return SUCCESS if the pipe was reclaimed succesfully. ERROR otherwise.
+*/
 int ReclaimPipeHelper(int id) {
    int pipe_idx = GET_INDEX(id);
    PCB *curr = current_process;
@@ -522,19 +606,3 @@ int ReclaimPipeHelper(int id) {
    num_pipes_active--;
    return SUCCESS;
 }
-
-
-
-// OPTIONAL START
-//
-// This section is marked as optional within the yalnix guide, though might be worth implementing
-// later..
-//
-int SemInit (int *, int);
-int SemUp (int);
-int SemDown (int);
-// OPTIONAL END
-
-// A thought I'm having here that will be implementation dependent:
-// A desire to move the atomic operations w/ the internal lock into it's own structure
-// - This makes "lock" essentially a wrapper-like structure with information about the usage of the lock (diagnostic?)
