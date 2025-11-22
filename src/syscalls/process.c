@@ -154,7 +154,7 @@ void Exit (int status) {
     curr->state = PROC_ZOMBIE;
 
     PCB *parent = curr->parent;
-    if (parent && parent->waiting_for_child_pid) {
+    if (parent != NULL && parent->waiting_for_child_pid == 1) {
         parent->state = PROC_READY;
         parent->waiting_for_child_pid = 0;
         queue_remove(blocked_queue, parent);
@@ -255,10 +255,7 @@ int Delay(int clock_ticks) {
     queue_enqueue(blocked_queue, curr);
     
     // Get the next ready process to run
-    PCB *next_proc = queue_dequeue(ready_queue);
-    if (next_proc == NULL) {
-        next_proc = idle_proc;
-    }
+    PCB *next_proc = (is_empty(ready_queue)) ? idle_proc : queue_dequeue(ready_queue);
     
     TracePrintf(SYSCALLS_TRACE_LEVEL, "Delay: Process PID %d is delayed. Switching to process PID %d...\n", curr->pid, next_proc->pid);
     KernelContextSwitch(KCSwitch, curr, next_proc);

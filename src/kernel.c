@@ -14,33 +14,22 @@
 
 int is_vm_enabled;
 
-// Kernel's region 0 sections
+/* ============== Forward Declarations ============== */
+// Kernel region 0 accounting info
 int kernel_brk_page;
 int text_section_base_page;
 int data_section_base_page;
+
 int LoadProgram(char *name, char *args[], PCB *proc);
-
-/* ================== Terminals ================== */
-#define NUM_TERMINALS 4
-#define TERMINAL_BUFFER_SIZE 1024
-typedef struct terminal {
-    int id;                        // terminal number (0–3)
-    char input_buffer[TERMINAL_BUFFER_SIZE];
-    int input_head;
-    int input_tail;
-    char output_buffer[TERMINAL_BUFFER_SIZE];
-    int output_head;
-    int output_tail;
-    int transmitting;              // flag: is a transmission in progress?
-    PCB *waiting_read_proc;      // process blocked on reading
-    PCB *waiting_write_proc;     // process blocked on writing
-} terminal_t;
-
-/* ==================== Helpers =================== */
-
-void CloneFrame(int pfn1, int pfn2);
+pte_t *InitializeKernelStackIdle(void);
+pte_t *InitializeKernelStackProcess(void);
+/* ============== Forward Declarations ============== */
 
 
+/**
+ * ======= KernelStart =======
+ * See kernel.h for more details.
+*/
 void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 {
     TracePrintf(1, "KernelStart: Entering KernelStart\n");
@@ -69,30 +58,36 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
     WriteRegister(REG_PTLR0, MAX_PT_LEN);
     WriteRegister(REG_VM_ENABLE, 1);
 
- 
+    /* ============== Loading Idle program =========== */
+    // Creating Idle process and setting it as current process
     idle_proc = CreateIdlePCB(uctxt);
+    idle_proc->kstack = InitializeKernelStackIdle();
     current_process = idle_proc;
-    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr);
-    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
+    WriteRegister(REG_PTBR1, (unsigned int)current_process->ptbr); // Telling the mmu where the base of the idle process PT is
+    WriteRegister(REG_PTLR1, NUM_PAGES_REGION1); // and how many entries it contains....
     TracePrintf(0, "Boot sequence till creating Idle process is done!\n");
-    memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
+    memcpy(uctxt, &current_process->user_context, sizeof(UserContext)); // Loading idle's user context into the uctxt
 
-    init_proc = getFreePCB();
+    /* ============== Loading Init Program ============ */
+    init_proc = getFreePCB(); // Finding a free PCB 
+
     if (init_proc == NULL) {
-       TracePrintf(0, "Failed to create the init process pdb.\n");
+       TracePrintf(0, "Failed to create the init process PCB.\n"); // Probably should halt?
+       Halt();
     }
+    // Allocating memory for init process' kernel stack
     init_proc->kstack = InitializeKernelStackProcess();
-    memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext));
+    memcpy(&(init_proc->user_context), uctxt, sizeof(UserContext)); // Copying current user context into init process
 
-    char *name = (cmd_args[0] == NULL) ? "./user/init" : cmd_args[0];
+    char *name = (cmd_args[0] == NULL) ? "./user/init" : cmd_args[0]; // If not init process is passed in the arguments, just default to program found at /user/init
 
+    // Switching registers for PT to prepare for loading init program
     TracePrintf(0, "Loading program into init proccess. Switching registers for region1 of page table and flushing TLB entries!\n");
     WriteRegister(REG_PTBR1, (unsigned int)init_proc->ptbr);
     WriteRegister(REG_PTLR1, NUM_PAGES_REGION1);
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_ALL);
 
     // Now, load the program text data and stack into init_proc process control block
-
     int load_status = LoadProgram(name, cmd_args, init_proc);
 
     if (load_status != SUCCESS) {
@@ -108,13 +103,19 @@ void KernelStart(char **cmd_args, unsigned int pmem_size, UserContext *uctxt)
 
     // Add the init process to the ready queue to be scheduled to run by the scheduler
     queue_enqueue(ready_queue, init_proc); // pid 0 running and only pid 1 in there
+
     // Now copy kernel context into init process
     KernelContextSwitch(KCCopy, init_proc, NULL);
-    memcpy(uctxt, &current_process->user_context, sizeof(UserContext));
-    // Still pid 0 running and only pid 1 in there
+    memcpy(uctxt, &current_process->user_context, sizeof(UserContext)); // Just to make sure any changes made to the user context get updated
+    
+    // Big man made it big time through kernel initialization. Now going back to user space
     return;
 }
 
+/**
+ * ======= KCSwitch =======
+ * See kernel.h for more details.
+*/
 KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p) {
     PCB *curr = (PCB *)curr_pcb_p;
     PCB *next = (PCB *)next_pcb_p;
@@ -146,6 +147,10 @@ KernelContext *KCSwitch(KernelContext *kc_in, void *curr_pcb_p, void *next_pcb_p
     return &(next->kernel_context);
 }
 
+/**
+ * ======= KCCopy =======
+ * See kernel.h for more details.
+*/
 KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
     PCB *pcb_new = (PCB *) new_pcb_p;
     if (pcb_new == NULL) {
@@ -176,59 +181,10 @@ KernelContext *KCCopy(KernelContext *kc_in, void *new_pcb_p, void *unused){
 
 }
 
-void scheduler() {
-    // while true:
-    //     next = queue_dequeue(ready_queue)
-    //     if next == NULL:
-    //         next = idle_pcb  // run idle if no ready processes
-
-    //     rc = KernelContextSwitch(KCSwitch, current, next)
-
-    //     if rc == -1:
-    //         TracePrintf(0, "Context switch failed")
-    //         Halt()
-
-    //     // When we return here, current process has resumed
-    //     HandlePendingTrapsOrSyscalls()
-}
-
-pte_t *InitializeKernelStackIdle(void) {
-    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
-    if (kernel_stack == NULL) {
-        TracePrintf(0, "InitializeKernelStackIdle: Failed to allocate memory for idle process Kernel Stack.\n");
-        return NULL;
-    }
-    for (int i = 0; i < KSTACK_PAGES; i++) {
-        int pfn = KSTACK_START_PAGE + i;
-        AllocSpecificFrame(pfn, FRAME_KERNEL, -1);
-
-        kernel_stack[i].valid = 1;
-        kernel_stack[i].pfn = pfn;
-        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
-
-    }
-    return kernel_stack;
-}
-
-pte_t *InitializeKernelStackProcess(void) {
-    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
-    if (kernel_stack == NULL) {
-        TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate memory for idle process Kernel Stack.\n");
-        return NULL;
-    }
-    for (int i = 0; i < KSTACK_PAGES; i++) {
-        int pfn = AllocFrame(FRAME_KERNEL, -1);
-        if (pfn == -1) {
-            TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
-            Halt();
-        }
-        kernel_stack[i].valid = 1;
-        kernel_stack[i].pfn = pfn;
-        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
-    }
-    return kernel_stack;
-}
-
+/**
+ * ======= SetKernelBrk =======
+ * See kernel.h for more details.
+*/
 int SetKernelBrk(void *addr_ptr)
 {
     if (addr_ptr == NULL) {
@@ -236,21 +192,21 @@ int SetKernelBrk(void *addr_ptr)
         return -1;
     }
 
-    /* convert address to target VPN */
+    // convert address to target VPN
     unsigned int target_vaddr = UP_TO_PAGE((unsigned int) addr_ptr);
     unsigned int target_vpn  = target_vaddr >> PAGESHIFT;
 
-    /* bounds: cannot grow into kernel stack (stack base is virtual address) */
+    // bounds: cannot grow into kernel stack (stack base is virtual address)
     unsigned int stack_base_vpn = DOWN_TO_PAGE(KERNEL_STACK_BASE) >> PAGESHIFT;
     if (target_vpn >= stack_base_vpn) {
         TracePrintf(0, "SetKernelBrk: target collides with kernel stack\n");
         return -1;
     }
 
-    /* current kernel_brk is a page number (vpn) */
-    unsigned int cur_vpn = (unsigned int) kernel_brk_page; /* assume kernel_brk is already VPN */
+    // current kernel_brk is a page number (virtual page number)
+    unsigned int cur_vpn = (unsigned int) kernel_brk_page;
 
-    /* Grow heap: map pages for VPNs [cur_vpn .. target_vpn-1] */
+    // Grow heap: map pages for VPNs [cur_vpn .. target_vpn-1]
     while (cur_vpn < target_vpn) {
         int pfn = AllocFrame(FRAME_KERNEL, -1);
 
@@ -259,14 +215,14 @@ int SetKernelBrk(void *addr_ptr)
             return -1;
         }
 
-        /* Map physical pfn into region0 VPN = cur_vpn */
+        // Map physical pfn into region0 VPN = cur_vpn
         MapRegion0(cur_vpn, pfn);
         cur_vpn++;
     }
 
-    /* Shrink heap: unmap pages for VPNs [target_vpn .. cur_vpn-1] */
+    // Shrink heap: unmap pages for VPNs [target_vpn .. cur_vpn-1]
     while (cur_vpn > target_vpn) {
-        cur_vpn--; /* handle the page at vpn = cur_vpn - 1 */
+        cur_vpn--; // handle the page at vpn = cur_vpn - 1
 
         if (!vpn_in_region0(cur_vpn)) {
             TracePrintf(0, "SetKernelBrk: shrink vpn out of range %u\n", cur_vpn);
@@ -280,22 +236,22 @@ int SetKernelBrk(void *addr_ptr)
 
         int pfn = (int) pt_region0[cur_vpn].pfn;
 
-        /* unmap */
+        // unmap
         UnmapRegion0(cur_vpn);
-        WriteRegister(REG_TLB_FLUSH, (unsigned int) cur_vpn);
-
-
-        /* free the physical frame */
+        // Free the physical frame
         FreeFrame(pfn);
     }
 
-    /* update kernel_brk (store vpn) */
+    // update kernel_brk (store vpn)
     kernel_brk_page = (int) target_vpn;
     return 0;
 }
 
-int
-LoadProgram(char *name, char *args[], PCB *proc) 
+/**
+ * ======= LoadProgram =======
+ * See kernel.h for more details.
+*/
+int LoadProgram(char *name, char *args[], PCB *proc) 
 
 {
   int fd;
@@ -452,7 +408,7 @@ LoadProgram(char *name, char *args[], PCB *proc)
         pt_region1[vpn].valid = 0;
     }
   }
-
+  WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_1);
   /*
    * ==>> Then, build up the new region1.  
    * ==>> (See the LoadProgram diagram in the manual.)
@@ -598,3 +554,79 @@ LoadProgram(char *name, char *args[], PCB *proc)
   return SUCCESS;
 }
 
+/* ================ Helpers ================ */
+
+/**
+ * ======================== Description =======================
+ * @brief Initializes the kernel stack for the idle process.
+ *        This function sets aside specific physical frames for the idle
+ *        process’s kernel stack that were already mapped in region 0
+ *        during virtual memory initialization.
+ * ======================== Behavior ==========================
+ * - Allocates a page table of size `KSTACK_PAGES` for the idle kernel stack.
+ * - For each stack page, allocates a specific frame (using `AllocSpecificFrame`)
+ *   corresponding to the pre-mapped physical frames starting at `KSTACK_START_PAGE`.
+ * - Marks each PTE as valid with read/write protection.
+ * ======================== Returns ===========================
+ * @returns pte_t* Pointer to the initialized kernel stack page table.
+ * @returns NULL if memory allocation for the PTE array fails.
+ * ======================== Notes =============================
+ * - Unlike regular processes, the idle process must use the exact frames
+ *   mapped during `initializeVM()` for its stack.
+ * - These frames are marked as used only at this stage (not during boot).
+ * - Intended to be called once during system startup.
+ */
+pte_t *InitializeKernelStackIdle(void) {
+    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
+    if (kernel_stack == NULL) {
+        TracePrintf(0, "InitializeKernelStackIdle: Failed to allocate memory for idle process Kernel Stack.\n");
+        return NULL;
+    }
+    for (int i = 0; i < KSTACK_PAGES; i++) {
+        int pfn = KSTACK_START_PAGE + i;
+        AllocSpecificFrame(pfn, FRAME_KERNEL, -1);
+
+        kernel_stack[i].valid = 1;
+        kernel_stack[i].pfn = pfn;
+        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
+
+    }
+    return kernel_stack;
+}
+
+/**
+ * ======================== Description =======================
+ * @brief Initializes the kernel stack for a newly created process.
+ *        This function allocates fresh physical frames for the process’s
+ *        kernel stack and maps them with standard read/write permissions.
+ * ======================== Behavior ==========================
+ * - Allocates a page table of size `KSTACK_PAGES` for the process’s kernel stack.
+ * - For each stack page, allocates a new physical frame using `AllocFrame(FRAME_KERNEL)`.
+ * - Marks each PTE as valid and sets read/write protection bits.
+ * ======================== Returns ===========================
+ * @returns pte_t* Pointer to the initialized kernel stack page table.
+ * @returns NULL if memory allocation for the PTE array fails.
+ * ======================== Notes =============================
+ * - Unlike `InitializeKernelStackIdle()`, this does *not* rely on specific
+ *   physical frames that were pre-mapped in region 0.
+ * - Used for user processes (non-idle) created after system initialization.
+ * - If frame allocation fails, the system halts to prevent inconsistent state.
+ */
+pte_t *InitializeKernelStackProcess(void) {
+    pte_t* kernel_stack = malloc(sizeof(pte_t) * KSTACK_PAGES);
+    if (kernel_stack == NULL) {
+        TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate memory for idle process Kernel Stack.\n");
+        return NULL;
+    }
+    for (int i = 0; i < KSTACK_PAGES; i++) {
+        int pfn = AllocFrame(FRAME_KERNEL, -1);
+        if (pfn == -1) {
+            TracePrintf(0, "InitializeKernelStackProcess: Failed to allocate frame for kernel stack.\n");
+            Halt();
+        }
+        kernel_stack[i].valid = 1;
+        kernel_stack[i].pfn = pfn;
+        kernel_stack[i].prot = PROT_WRITE | PROT_READ;
+    }
+    return kernel_stack;
+}

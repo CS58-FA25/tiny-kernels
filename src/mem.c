@@ -157,7 +157,7 @@ void MapRegion0(unsigned int vpn, int pfn) {
     pt_region0[vpn].prot  = PROT_READ | PROT_WRITE;
     pt_region0[vpn].pfn   = (unsigned int)pfn;
 
-    WriteRegister(REG_TLB_FLUSH, vpn);
+    WriteRegister(REG_TLB_FLUSH, (unsigned int)(vpn << PAGESHIFT));
 }
 
 /**
@@ -172,7 +172,7 @@ void UnmapRegion0(unsigned int vpn) {
     pt_region0[vpn].valid = 0;
     pt_region0[vpn].prot  = 0;
     pt_region0[vpn].pfn   = 0;
-    WriteRegister(TLB_FLUSH_0, vpn);
+    WriteRegister(TLB_FLUSH_0, (unsigned int)(vpn << PAGESHIFT));
 }
 
 /* ============= Helper Functions ============== */

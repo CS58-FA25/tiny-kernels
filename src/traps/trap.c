@@ -47,7 +47,6 @@ int CheckBuffer(void *addr, int len);
 */
 void ClockTrapHandler(UserContext* ctx) {
    TracePrintf(0, "ClockTrapHandler: Clock trap triggered. Ticks: %d\n", (int32_t)(tick_count));
-
    PCB *curr = current_process;
    memcpy(&curr->user_context, ctx, sizeof(UserContext));
    queue_iterate(blocked_queue, NULL, ClockTrapHandlerHelper);
@@ -58,7 +57,7 @@ void ClockTrapHandler(UserContext* ctx) {
       // Only switch if we are not switching from idle to idle
       TracePrintf(0, "ClockTrapHandler: Switching from PID %d to PID %d\n", curr->pid, next->pid);
       curr->state = PROC_READY;
-      queue_enqueue(ready_queue, curr);
+      if (curr != idle_proc) queue_enqueue(ready_queue, curr); // Making sure we don't queue idle process by accident into ready queue
       KernelContextSwitch(KCSwitch, curr, next);
    }
 
@@ -371,7 +370,6 @@ void MemoryTrapHandler(UserContext* ctx) {
       }
       return;
    }
-   if (ctx -> code == YALNIX_MAPERR)
    if (ctx->code == YALNIX_MAPERR) {
       TracePrintf(0, "Kernel: Error, page is not mapped!\n");
       TracePrintf(0, "Kernel: Killing process PID %d.\n", current_process->pid);
@@ -526,6 +524,7 @@ void ClockTrapHandlerHelper(void *arg, PCB *process) {
       process->delay_ticks--;
       if (process->delay_ticks == 0) {
             TracePrintf(0, "Process PID %d delay has elapsed!\n", process->pid);
+
             queue_remove(blocked_queue, process);
             process->state = PROC_READY;
             queue_enqueue(ready_queue, process);
@@ -566,6 +565,7 @@ int growStack(unsigned int addr) {
       pt_region1[target_vpn + i].valid = 1;
       pt_region1[target_vpn + i].pfn = pfn;
       pt_region1[target_vpn + i].prot = PROT_READ | PROT_WRITE;
+      WriteRegister(REG_TLB_FLUSH, (unsigned int) (VMEM_1_BASE + ((target_vpn + i) << PAGESHIFT)));
    }
    current_process->user_stack_base_vaddr = addr_aligned_to_page_base;
    TracePrintf(0, "Succesfully grew process PID %d stack to %u.\n", current_process->pid, addr);

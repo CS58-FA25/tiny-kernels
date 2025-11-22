@@ -151,7 +151,6 @@ PCB *CreateIdlePCB(UserContext *uctxt) {
     memset(&idle_proc->user_context, 0, sizeof(UserContext));
 
     idle_proc->user_context.sp = (void *)(VMEM_1_LIMIT - 4);
-    idle_proc->kstack = InitializeKernelStackIdle();
     (&(idle_proc->user_context))->pc = (void *)DoIdle;
 
     idle_proc->state = PROC_RUNNING;
