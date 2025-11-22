@@ -62,7 +62,7 @@ The kernel also implements a tty subsystem where processes coordinate to write t
 - Buffer Validation: For example, when the user passes along a buffer address to read from a terminal, we ensure that we are copying data into user-space memory.
 # Team Divsion of Labor
 - Ahmed Al Sunbati: Kernel Logic, Kernel Data Structures, trap handlers, synchronization and syscalls.
-- Isabella Fusari: Pseudocode, API for syscalls and interrupts, terminals, build, and initial version of `LoadProgram`. 
+- Isabella Fusari: Pseudocode, headers for syscalls and interrupts, terminals, build, and initial version of `LoadProgram`. 
 
 
 ## Docker (if not on thayer machine)
