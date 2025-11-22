@@ -4,6 +4,7 @@ We implemented the full features of the yalnix kernel. The kernel's entry point 
 - Interrupt vector table
 - Terminals
 - Process Table (to keep track of free slots that we can use to run a process).
+
 After initializing these data structures, it goes ahead to enable VM and writes its region 0 PT to the register `REG_PTBR0`.
 The second stage of the program involves creating the idle process PCB. We also initalize its kernel stack (this is the only process that has a special initialize kernel stack function. Because, we want to make sure that the kernel stack has an identity mapping similar to the identity mapping we had earlier for the kernel heap, data and BSS. For other processes, we use whichever frame to allocate memory for their kernel stack.)
 The third stage involves loading the init process. We create PCB, allocate memory for its kernel stack and then copy idle into init (Init takes the kernel context and the contents of the kernel stack for idle.)
