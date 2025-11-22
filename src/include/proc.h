@@ -47,12 +47,11 @@ typedef struct pcb {
     unsigned int user_stack_base_vaddr; /* top of user stack (initial) */
 
     /* Scheduling queue pointers */
-    PCB *next;
-    PCB *prev;
     PCB *parent;
     queue_t *children_processes;
 
-
+    int proc_table_idx;
+    
     /* bookkeeping flags */
     int waiting_for_child_pid;  /* if parent is blocked waiting for child (Wait) */
     int last_run_tick;          /* last tick when this process ran (scheduler info) */

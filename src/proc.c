@@ -58,8 +58,6 @@ PCB *AllocNewPCB() {
     memset(&process->user_context, 0, sizeof(UserContext));
     memset(&process->kernel_context, 0, sizeof(KernelContext));
     // Queue links and relationships
-    process->next = NULL;
-    process->prev = NULL;
     process->parent = NULL;
     process->children_processes = queue_create();
     if (process->children_processes == NULL) {
@@ -97,6 +95,7 @@ PCB *getFreePCB(void) {
             
             // Put it in the table
             proc_table[i] = pcb; 
+            pcb->proc_table_idx = i;
             
             // Set its initial state and return it
             pcb->state = PROC_RUNNING; // Or whatever state you use for "new"

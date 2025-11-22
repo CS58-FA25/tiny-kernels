@@ -149,6 +149,7 @@ void Exit (int status) {
         queue_iterate(curr->children_processes, (void *)init_proc, OrphanAdoptionHelper);
     }
 
+    proc_table[curr->proc_table_idx] = NULL; // So new processes could use this new slot
     queue_enqueue(zombie_queue, curr);
     curr->exit_status = status;
     curr->state = PROC_ZOMBIE;
